@@ -22,11 +22,15 @@ set(MINITIME_SOURCES
     src/gdi_text_painter.cpp
     src/timefmt.cpp
     src/hotkey.cpp
+    src/tray_icon.cpp
+    src/tray_menu.cpp
+    src/autostart.cpp
+    res/resource.rc
 )
 
 add_executable(MiniTime WIN32 ${MINITIME_SOURCES})
 
-target_include_directories(MiniTime PRIVATE src)
+target_include_directories(MiniTime PRIVATE src res)
 
 target_compile_definitions(MiniTime PRIVATE
     UNICODE
