@@ -12,7 +12,7 @@ permissions:
 
 env:
   BUILD_DIR: build
-  EXE_NAME: GameClock.exe
+  EXE_NAME: MiniTime.exe
   SIZE_LIMIT: 300000
 
 jobs:
@@ -20,83 +20,86 @@ jobs:
     runs-on: windows-latest
 
     steps:
-      - name: 检出代码
+      - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: 配置 MSVC 环境
+      - name: Setup MSVC
         uses: ilammy/msvc-dev-cmd@v1
         with:
           arch: x64
 
-      - name: 生成版本号
+      - name: Resolve version
         id: version
         shell: pwsh
         run: |
           $v = (git describe --tags --always --dirty) -replace '^v', ''
           "VERSION=$v" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
-          Write-Host "版本号: $v"
+          Write-Host "version: $v"
 
-      - name: 配置 CMake
+      - name: Configure CMake
         shell: pwsh
         run: |
           cmake -S . -B ${{ env.BUILD_DIR }} -G Ninja `
                 -DCMAKE_BUILD_TYPE=Release `
                 -DGAMECLOCK_VERSION=${{ steps.version.outputs.VERSION }}
+          if ($LASTEXITCODE -ne 0) { throw "configure failed" }
 
-      - name: 编译
+      - name: Build
         shell: pwsh
-        run: cmake --build ${{ env.BUILD_DIR }} --config Release
+        run: |
+          cmake --build ${{ env.BUILD_DIR }} --config Release
+          if ($LASTEXITCODE -ne 0) { throw "build failed" }
 
-      - name: 体积门禁
+      - name: Size gate
         id: sizegate
         shell: pwsh
         run: |
           $exe = Join-Path "${{ env.BUILD_DIR }}" "${{ env.EXE_NAME }}"
-          if (-not (Test-Path $exe)) { throw "未找到产物: $exe" }
+          if (-not (Test-Path $exe)) { throw "artifact not found: $exe" }
           $size = (Get-Item $exe).Length
           $kb = [math]::Round($size / 1KB, 1)
-          Write-Host ("产物大小: {0:N0} 字节 ({1} KB)" -f $size, $kb)
+          Write-Host ("artifact: {0:N0} bytes ({1} KB)" -f $size, $kb)
           "SIZE=$kb" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           if ($size -gt ${{ env.SIZE_LIMIT }}) {
-            throw ("体积超标: {0} 字节 > 上限 {1} 字节。请检查依赖与体积优化开关。" -f $size, ${{ env.SIZE_LIMIT }})
+            throw ("size gate failed: {0} bytes exceeds limit {1} bytes" -f $size, ${{ env.SIZE_LIMIT }})
           }
-          Write-Host "体积门禁通过"
+          Write-Host "size gate passed"
 
-      - name: 上传产物
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: GameClock-win64
+          name: MiniTime-win64
           path: ${{ env.BUILD_DIR }}/${{ env.EXE_NAME }}
           if-no-files-found: error
 
-      - name: 打包 Release
+      - name: Package release
         if: startsWith(github.ref, 'refs/tags/v')
         shell: pwsh
         run: |
           Compress-Archive -Path "${{ env.BUILD_DIR }}/${{ env.EXE_NAME }}" `
-                           -DestinationPath "GameClock-${{ github.ref_name }}-win64.zip"
+                           -DestinationPath "MiniTime-${{ github.ref_name }}-win64.zip"
 
-      - name: 创建 Release
+      - name: Create release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: GameClock-${{ github.ref_name }}-win64.zip
+          files: MiniTime-${{ github.ref_name }}-win64.zip
           generate_release_notes: true
 
-      - name: 构建摘要
+      - name: Summary
         if: always()
         shell: pwsh
         run: |
           $rows = @(
-            '### GameClock 构建结果',
+            '### MiniTime build',
             '',
-            '| 项 | 值 |',
+            '| item | value |',
             '|---|---|',
-            '| 版本 | ${{ steps.version.outputs.VERSION }} |',
-            '| 产物大小 | ${{ steps.sizegate.outputs.SIZE }} KB |',
-            '| 体积上限 | 300 KB |',
-            '| 体积门禁 | ${{ steps.sizegate.outcome }} |'
+            '| version | ${{ steps.version.outputs.VERSION }} |',
+            '| size | ${{ steps.sizegate.outputs.SIZE }} KB |',
+            '| size limit | 300 KB |',
+            '| size gate | ${{ steps.sizegate.outcome }} |'
           )
           $rows | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
