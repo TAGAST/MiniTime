@@ -231,6 +231,8 @@ void App::ShowTrayMenu() {
     state.visible   = overlay_.IsVisible();
     state.autostart = autostart::IsEnabled();
     state.config    = config_;
+    state.toggleConflicted = hotkeys_.IsConflicted(HotkeyId::Toggle);
+    state.editConflicted   = hotkeys_.IsConflicted(HotkeyId::Edit);
 
     const MenuCommand command = trayMenu_.Show(router_, pt, state);
     HandleMenuCommand(command);
@@ -376,14 +378,41 @@ void App::OnEditFinishedThunk(void* context, bool commit) {
     auto* self = static_cast<App*>(context);
     if (!self) return;
 
-    const RECT actual = self->overlay_.Bounds();
-    const POINT pos = { actual.left, actual.top };
+    const POINT pos = self->ComputeCommittedPosition();
     const bool moved = self->dragEditor_.HasMoved();
 
     self->dragEditor_.SetMovedCallback(nullptr, nullptr);
     self->dragEditor_.SetFinishedCallback(nullptr, nullptr);
 
     self->RestoreAfterEdit(commit, pos, moved);
+}
+
+POINT App::ComputeCommittedPosition() const {
+    // 编辑模式的底板比常态窗口更大，用户拖动时参照的是底板中心。
+    // 若直接保存左上角，确认后窗口收缩会让人感觉"往左上跑了"。
+    // 因此按中心对齐换算：保存后的窗口中心 == 拖动时的底板中心。
+    const RECT editRect = overlay_.Bounds();
+
+    const int editWidth  = editRect.right - editRect.left;
+    const int editHeight = editRect.bottom - editRect.top;
+
+    // 必须重新测量常态尺寸：编辑期间 LastWidth/LastHeight 记录的是放大后的尺寸，
+    // 直接使用会让两者相等，中心换算永远不会触发。
+    const SIZE normal = presenter_.MeasureNormalSize();
+    const int normalWidth  = normal.cx;
+    const int normalHeight = normal.cy;
+
+    POINT pos = { editRect.left, editRect.top };
+
+    if (normalWidth > 0 && normalHeight > 0 &&
+        (normalWidth != editWidth || normalHeight != editHeight)) {
+        const int editCenterX = editRect.left + editWidth / 2;
+        const int editCenterY = editRect.top + editHeight / 2;
+        pos.x = editCenterX - normalWidth / 2;
+        pos.y = editCenterY - normalHeight / 2;
+    }
+
+    return pos;
 }
 
 bool App::IsFormatCommand(MenuCommand command) {

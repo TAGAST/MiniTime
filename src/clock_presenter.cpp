@@ -175,6 +175,28 @@ void ClockPresenter::EraseRegion(HWND hwnd, int x, int y, int width, int height)
     ReleaseDC(nullptr, screenDc);
 }
 
+SIZE ClockPresenter::MeasureNormalSize() const {
+    SIZE result = { lastWidth_, lastHeight_ };
+
+    SYSTEMTIME st = {};
+    GetLocalTime(&st);
+    const std::wstring text = timefmt::Format(st, format_);
+    if (text.empty()) return result;
+
+    HDC dc = CreateCompatibleDC(nullptr);
+    if (!dc) return result;
+
+    const SIZE textSize = painter_.Measure(dc, text.c_str());
+    DeleteDC(dc);
+
+    if (textSize.cx > 0 && textSize.cy > 0) {
+        result.cx = textSize.cx + painter_.PaddingX() * 2;
+        result.cy = textSize.cy + painter_.PaddingY() * 2;
+    }
+
+    return result;
+}
+
 void ClockPresenter::InvalidateGeometry() {
     hasGeometry_ = false;
 }

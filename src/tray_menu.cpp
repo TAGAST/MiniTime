@@ -1,5 +1,7 @@
 #include "tray_menu.h"
 
+#include "hotkey.h"
+
 namespace {
 
 void AppendChecked(HMENU menu, UINT id, const wchar_t* text, bool checked) {
@@ -11,6 +13,22 @@ HotkeySpec MakeHK(UINT modifiers, UINT vk) {
     spec.modifiers = modifiers;
     spec.virtualKey = vk;
     return spec;
+}
+
+// 热键菜单项：被占用的组合置灰，并在文字后标注"已被占用"
+void AppendHotkeyItem(HMENU menu, UINT id, const wchar_t* text,
+                      bool checked, bool occupied) {
+    UINT flags = MF_STRING;
+    if (checked) flags |= MF_CHECKED;
+    if (occupied) flags |= MF_GRAYED;
+
+    if (occupied) {
+        wchar_t label[128] = {};
+        swprintf(label, 128, L"%ls  (已被占用)", text);
+        AppendMenuW(menu, flags, id, label);
+    } else {
+        AppendMenuW(menu, flags, id, text);
+    }
 }
 
 bool SameHotkey(const HotkeySpec& a, const HotkeySpec& b) {
@@ -125,8 +143,13 @@ MenuCommand TrayMenu::Show(HWND owner, POINT screenPos, const TrayMenuState& sta
         { MenuCommand::ToggleHK_F10,        L"F10",          MakeHK(0, VK_F10) },
     };
     for (const auto& item : toggleKeys) {
-        AppendChecked(toggleMenu, static_cast<UINT>(item.cmd), item.label,
-                      SameHotkey(state.config.hotkeyToggle, item.spec));
+        const bool checked = SameHotkey(state.config.hotkeyToggle, item.spec);
+        // 当前生效项由本程序自己注册，探测必然失败，不能判为"被占用"
+        const bool occupied = !checked &&
+            (HotkeyRegistry::IsAvailable(item.spec) == FALSE) &&
+            !state.toggleConflicted;
+        AppendHotkeyItem(toggleMenu, static_cast<UINT>(item.cmd), item.label,
+                         checked, occupied);
     }
     AppendMenuW(toggleMenu, MF_SEPARATOR, 0, nullptr);
     AppendChecked(toggleMenu, static_cast<UINT>(MenuCommand::ToggleHK_None1), L"禁用",
@@ -143,8 +166,12 @@ MenuCommand TrayMenu::Show(HWND owner, POINT screenPos, const TrayMenuState& sta
         { MenuCommand::EditHK_F12,        L"F12",          MakeHK(0, VK_F12) },
     };
     for (const auto& item : editKeys) {
-        AppendChecked(editMenu, static_cast<UINT>(item.cmd), item.label,
-                      SameHotkey(state.config.hotkeyEdit, item.spec));
+        const bool checked = SameHotkey(state.config.hotkeyEdit, item.spec);
+        const bool occupied = !checked &&
+            (HotkeyRegistry::IsAvailable(item.spec) == FALSE) &&
+            !state.editConflicted;
+        AppendHotkeyItem(editMenu, static_cast<UINT>(item.cmd), item.label,
+                         checked, occupied);
     }
     AppendMenuW(editMenu, MF_SEPARATOR, 0, nullptr);
     AppendChecked(editMenu, static_cast<UINT>(MenuCommand::EditHK_None2), L"禁用",

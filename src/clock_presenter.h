@@ -40,6 +40,10 @@ public:
     int LastWidth() const { return lastWidth_; }
     int LastHeight() const { return lastHeight_; }
 
+    // 计算"常态"（不含编辑模式底板与提示行）的窗口尺寸。
+    // 注意：不能用 LastWidth/LastHeight —— 编辑期间它们记录的是放大后的尺寸。
+    SIZE MeasureNormalSize() const;
+
     LayoutConfig& MutableLayout() { return layout_; }
 
 private:

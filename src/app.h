@@ -46,6 +46,7 @@ private:
     static void OnDragMovedThunk(void* context);
     static void OnEditFinishedThunk(void* context, bool commit);
     void RestoreAfterEdit(bool commit, POINT pos, bool moved);
+    POINT ComputeCommittedPosition() const;
     void ApplyConfigToPresenter();
     void RenderNow();
 

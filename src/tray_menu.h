@@ -11,6 +11,10 @@ struct TrayMenuState {
     bool      visible   = true;
     bool      autostart = false;
     AppConfig config    = {};
+
+    // 当前热键是否因被其它程序占用而注册失败（菜单据此置灰提示）
+    bool toggleConflicted = false;
+    bool editConflicted   = false;
 };
 
 // 只负责构建菜单并返回用户选择的命令。
