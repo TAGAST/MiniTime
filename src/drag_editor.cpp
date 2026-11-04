@@ -44,10 +44,18 @@ void DragEditor::End(bool commit) {
         MoveTo(origX_, origY_);
     }
 
+    // 先复位自身状态，再通知宿主：宿主的回调里会查询 IsActive()，
+    // 若此时仍为 true 会提前返回，导致样式无法恢复。
     active_   = false;
     dragging_ = false;
+
+    FinishedCallback cb = finishedCb_;
+    void* ctx = finishedCtx_;
+
     overlay_  = nullptr;
     host_     = nullptr;
+
+    if (cb) cb(ctx, commit);
 }
 
 void DragEditor::ClampToScreen(int& x, int& y) const {
@@ -63,6 +71,11 @@ void DragEditor::ClampToScreen(int& x, int& y) const {
 void DragEditor::SetMovedCallback(MovedCallback cb, void* context) {
     movedCb_ = cb;
     movedCtx_ = context;
+}
+
+void DragEditor::SetFinishedCallback(FinishedCallback cb, void* context) {
+    finishedCb_ = cb;
+    finishedCtx_ = context;
 }
 
 void DragEditor::NotifyMoved() {

@@ -312,9 +312,13 @@ void App::EnterEditMode() {
 
     // 半透明底板 + 边框：便于识别拖动区域，并让整块区域可接收鼠标
     presenter_.SetEditAppearance(true);
+    presenter_.SetEditHint(L"移动中，按回车固定");
 
     // 位置变化时立即重绘，避免内容滞后于光标
     dragEditor_.SetMovedCallback(&App::OnDragMovedThunk, this);
+
+    // 回车 / ESC / 超时会由 DragEditor 内部结束会话，必须在此恢复外观
+    dragEditor_.SetFinishedCallback(&App::OnEditFinishedThunk, this);
 
     overlay_.SetClickThrough(false);
     overlay_.SetFocusable(true);
@@ -327,16 +331,27 @@ void App::EnterEditMode() {
 }
 
 void App::ExitEditMode(bool commit) {
-    if (!dragEditor_.IsActive()) return;
+    // 会话可能已由 DragEditor 内部结束（回车/ESC/超时），此处仍需完成清理，
+    // 因此不能以 IsActive() 作为唯一前提。
+    const bool wasActive = dragEditor_.IsActive();
 
     // 以窗口实际位置为准，避免内部记录与真实几何不一致
     const RECT actual = overlay_.Bounds();
     const POINT pos = { actual.left, actual.top };
     const bool moved = dragEditor_.HasMoved();
 
-    dragEditor_.End(commit);
-    dragEditor_.SetMovedCallback(nullptr, nullptr);
+    if (wasActive) {
+        dragEditor_.End(commit);   // 内部会回调 OnEditFinishedThunk
+        return;                    // 清理交给回调完成，避免重复执行
+    }
 
+    dragEditor_.SetMovedCallback(nullptr, nullptr);
+    dragEditor_.SetFinishedCallback(nullptr, nullptr);
+
+    RestoreAfterEdit(commit, pos, moved);
+}
+
+void App::RestoreAfterEdit(bool commit, POINT pos, bool moved) {
     // 恢复点击穿透与不可获得焦点的行为
     overlay_.SetClickThrough(true);
     overlay_.SetFocusable(false);
@@ -355,6 +370,20 @@ void App::ExitEditMode(bool commit) {
     ApplyConfigToPresenter();
     RenderNow();
     UpdateTrayTooltip();
+}
+
+void App::OnEditFinishedThunk(void* context, bool commit) {
+    auto* self = static_cast<App*>(context);
+    if (!self) return;
+
+    const RECT actual = self->overlay_.Bounds();
+    const POINT pos = { actual.left, actual.top };
+    const bool moved = self->dragEditor_.HasMoved();
+
+    self->dragEditor_.SetMovedCallback(nullptr, nullptr);
+    self->dragEditor_.SetFinishedCallback(nullptr, nullptr);
+
+    self->RestoreAfterEdit(commit, pos, moved);
 }
 
 bool App::IsFormatCommand(MenuCommand command) {

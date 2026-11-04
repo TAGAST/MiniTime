@@ -19,27 +19,93 @@ bool ClockPresenter::Render(HWND hwnd) {
     const SIZE textSize = painter_.Measure(screenDc, text.c_str());
     ReleaseDC(nullptr, screenDc);
 
-    int width  = textSize.cx + painter_.PaddingX() * 2;
-    int height = textSize.cy + painter_.PaddingY() * 2;
-
     // 编辑模式留出更大边距，便于抓住
     const int editPad = editAppearance_ ? 10 : 0;
-    width  += editPad * 2;
-    height += editPad * 2;
+
+    int width  = textSize.cx + painter_.PaddingX() * 2 + editPad * 2;
+    int height = textSize.cy + painter_.PaddingY() * 2 + editPad * 2;
+
+    // 提示行尺寸（编辑模式才显示）
+    constexpr int kHintPixelSize = 13;   // 请求字号
+    constexpr int kHintGap       = 4;
+    int hintWidth  = 0;
+    int hintHeight = 0;
+    bool showHint  = false;
+
+    if (editAppearance_ && editHint_ && editHint_[0]) {
+        // 必须在与绘制表面同类的内存 DC 上测量：
+        // 屏幕 DC 与 DIB 内存 DC 在非 100% DPI 下取到的字体度量不一致，
+        // 用屏幕 DC 测量会导致提示文字超出底板。
+        HDC measureDc = CreateCompatibleDC(nullptr);
+        if (measureDc) {
+            const SIZE hintSize = painter_.MeasureHint(measureDc, editHint_, kHintPixelSize);
+            hintWidth  = hintSize.cx;
+            hintHeight = hintSize.cy > 0 ? hintSize.cy : kHintPixelSize;
+            DeleteDC(measureDc);
+        }
+        if (hintWidth > 0 && hintHeight > 0) {
+            showHint = true;
+            height += kHintGap + hintHeight;
+        }
+    }
+
+    // 底板必须同时容纳主文字与提示行，两侧各留 editPad 内边距。
+    // 用取两者较大值的方式，避免任一被裁切。
+    if (editAppearance_) {
+        const int need = (showHint ? hintWidth : 0) + editPad * 2;
+        if (need > width) width = need;
+    }
 
     if (!surface_.EnsureSize(width, height)) return false;
+
+    // 第二遍校准：在真实表面 DC 上复测提示宽度，防止 DPI/字体回退造成的偏差
+    if (showHint) {
+        const SIZE actual = painter_.MeasureHint(surface_.Dc(), editHint_, kHintPixelSize);
+        if (actual.cx > hintWidth) hintWidth = actual.cx;
+        if (actual.cy > hintHeight) {
+            height += actual.cy - hintHeight;
+            hintHeight = actual.cy;
+        }
+
+        const int need = hintWidth + editPad * 2;
+        if (need > width) width = need;
+
+        if (!surface_.EnsureSize(width, height)) return false;
+    }
+
     lastWidth_  = width;
     lastHeight_ = height;
 
     surface_.Clear();
-    painter_.Draw(surface_.Dc(), text.c_str(),
-                  painter_.PaddingX() + editPad,
-                  painter_.PaddingY() + editPad);
+
+    // 主文字：编辑模式下水平居中，避免与提示行错位
+    const int mainX = editAppearance_
+        ? (width - textSize.cx) / 2
+        : painter_.PaddingX();
+    const int mainY = painter_.PaddingY() + editPad;
+
+    painter_.Draw(surface_.Dc(), text.c_str(), mainX, mainY);
+
+    // 提示行同样先以白色绘制在黑底上
+    if (showHint) {
+        // 居中；若空间不足则从内边距处左对齐，宁可贴边也不溢出底板
+        const int avail = width - editPad * 2;
+        const int hintX = (hintWidth <= avail)
+            ? (width - hintWidth) / 2
+            : editPad;
+        const int hintY = height - editPad - hintHeight;
+        painter_.DrawHint(surface_.Dc(), editHint_, hintX, hintY,
+                          kHintPixelSize, RGB(255, 255, 255));
+    }
+
+    // 此时所有文字都以"白色 = 覆盖率"的形式存在，统一推一次 alpha。
+    // 必须放在合成底板之前，否则会把底板与边框的 alpha 覆盖掉。
     surface_.ApplyAlphaFromLuminance();
 
     if (editAppearance_) {
         // 半透明底板：让整块区域都能接收鼠标（分层窗口按 alpha 做命中测试）
         surface_.CompositeOverBackground(RGB(24, 28, 36), 170);
+
         // 1px 边框，明确拖动区域
         surface_.DrawBorder(RGB(120, 200, 255), 220);
     }
@@ -128,14 +194,16 @@ void ClockPresenter::SyncWindowGeometry(HWND hwnd, int x, int y, int width, int 
 
     if (unchanged) return;
 
-    // 分层窗口缩小后，DWM 不会擦除原先占据的屏幕区域，旧文字会残留在桌面上。
+    // 分层窗口缩小后，DWM 不会擦除原先占据的屏幕区域，旧内容会残留在桌面上。
     // 注意：这里不能复用 surface_ —— 调用方刚在其中绘制好新内容，
     // 改动它的尺寸或清空会把这一帧毁掉。改用一次性的临时表面擦除旧区域。
+    //
+    // 必须无条件擦除：调用方可能刚调用过 InvalidateGeometry()（例如退出编辑模式），
+    // 此时 hasGeometry_ 已是 false，若以此为条件会跳过擦除，
+    // 导致编辑模式的底板在窗口缩小后残留在屏幕上。
 
-    if (hasGeometry_) {
-        EraseRegion(hwnd, current.left, current.top,
-                    current.right - current.left, current.bottom - current.top);
-    }
+    EraseRegion(hwnd, current.left, current.top,
+                current.right - current.left, current.bottom - current.top);
 
     // SWP_NOACTIVATE：绝不抢游戏焦点
     SetWindowPos(hwnd, HWND_TOPMOST, x, y, width, height,

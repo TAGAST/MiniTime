@@ -17,6 +17,11 @@ public:
     using MovedCallback = void (*)(void* context);
     void SetMovedCallback(MovedCallback cb, void* context);
 
+    // 会话结束回调：回车/ESC/超时会内部调用 End()，
+    // 此时必须通知宿主恢复窗口样式与渲染外观，否则底板与穿透状态不会还原。
+    using FinishedCallback = void (*)(void* context, bool commit);
+    void SetFinishedCallback(FinishedCallback cb, void* context);
+
     // 退出编辑模式。commit=true 表示保留当前位置，false 表示还原
     void End(bool commit);
 
@@ -43,8 +48,10 @@ private:
     bool  moved_      = false;
 
     POINT dragStartCursor_ = { 0, 0 };   // 屏幕绝对坐标
-    MovedCallback movedCb_ = nullptr;
-    void*         movedCtx_ = nullptr;
+    MovedCallback   movedCb_   = nullptr;
+    void*           movedCtx_  = nullptr;
+    FinishedCallback finishedCb_ = nullptr;
+    void*            finishedCtx_ = nullptr;
     int   startX_ = 0;
     int   startY_ = 0;
     int   origX_  = 0;

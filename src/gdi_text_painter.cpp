@@ -37,6 +37,45 @@ SIZE GdiTextPainter::Measure(HDC dc, const wchar_t* text) const {
     return size;
 }
 
+SIZE GdiTextPainter::MeasureHint(HDC dc, const wchar_t* text, int pixelHeight) const {
+    SIZE size = { 0, 0 };
+    if (!dc || !text || !text[0] || pixelHeight <= 0) return size;
+
+    HFONT font = CreateFontW(
+        -pixelHeight, 0, 0, 0, FW_NORMAL,
+        FALSE, FALSE, FALSE,
+        DEFAULT_CHARSET, OUT_TT_PRECIS, CLIP_DEFAULT_PRECIS,
+        ANTIALIASED_QUALITY, DEFAULT_PITCH | FF_DONTCARE,
+        style_.fontFace);
+    if (!font) return size;
+
+    HGDIOBJ old = SelectObject(dc, font);
+    GetTextExtentPoint32W(dc, text, lstrlenW(text), &size);
+    SelectObject(dc, old);
+    DeleteObject(font);
+    return size;
+}
+
+void GdiTextPainter::DrawHint(HDC dc, const wchar_t* text, int x, int y,
+                              int pixelHeight, COLORREF color) const {
+    if (!dc || !text || !text[0] || pixelHeight <= 0) return;
+
+    HFONT font = CreateFontW(
+        -pixelHeight, 0, 0, 0, FW_NORMAL,
+        FALSE, FALSE, FALSE,
+        DEFAULT_CHARSET, OUT_TT_PRECIS, CLIP_DEFAULT_PRECIS,
+        ANTIALIASED_QUALITY, DEFAULT_PITCH | FF_DONTCARE,
+        style_.fontFace);
+    if (!font) return;
+
+    HGDIOBJ old = SelectObject(dc, font);
+    SetBkMode(dc, TRANSPARENT);
+    SetTextColor(dc, color);
+    TextOutW(dc, x, y, text, lstrlenW(text));
+    SelectObject(dc, old);
+    DeleteObject(font);
+}
+
 void GdiTextPainter::Draw(HDC dc, const wchar_t* text, int x, int y) const {
     if (!dc || !text || !text[0]) return;
 

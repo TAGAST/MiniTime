@@ -44,6 +44,8 @@ private:
     static bool OverlayMessageThunk(void* context, HWND hwnd, UINT msg,
                                     WPARAM wParam, LPARAM lParam);
     static void OnDragMovedThunk(void* context);
+    static void OnEditFinishedThunk(void* context, bool commit);
+    void RestoreAfterEdit(bool commit, POINT pos, bool moved);
     void ApplyConfigToPresenter();
     void RenderNow();
 
