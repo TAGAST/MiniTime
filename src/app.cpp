@@ -85,7 +85,19 @@ void App::UpdateTrayTooltip() {
 void App::ApplyConfigToPresenter() {
     presenter_.SetStyle(config_.ToTextStyle());
     presenter_.SetLayout(config_.ToLayoutConfig());
+
+    format_ = config_.timeFormat;
     presenter_.SetFormat(format_);
+}
+
+void App::SyncRefreshTimer() {
+    if (!router_) return;
+
+    const UINT next = timefmt::RefreshIntervalMs(format_);
+    if (next == timerMs_ && timerMs_ != 0) return;
+
+    timerMs_ = next;
+    SetTimer(router_, kRefreshTimerId, timerMs_, nullptr);
 }
 
 void App::RenderNow() {
@@ -260,6 +272,11 @@ void App::HandleMenuCommand(MenuCommand command) {
         if (IsHotkeyCommand(command)) {
             RegisterHotkeysFromConfig();
         }
+
+        // 时间格式变化会影响刷新频率（显示秒时更快）
+        if (IsFormatCommand(command)) {
+            SyncRefreshTimer();
+        }
     }
 }
 
@@ -338,6 +355,11 @@ void App::ExitEditMode(bool commit) {
     ApplyConfigToPresenter();
     RenderNow();
     UpdateTrayTooltip();
+}
+
+bool App::IsFormatCommand(MenuCommand command) {
+    const int value = static_cast<int>(command);
+    return value >= 3001 && value <= 3004;
 }
 
 bool App::IsHotkeyCommand(MenuCommand command) {

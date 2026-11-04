@@ -33,7 +33,9 @@ private:
 
     void ShowTrayMenu();
     void RegisterHotkeysFromConfig();
+    void SyncRefreshTimer();
     static bool IsHotkeyCommand(MenuCommand command);
+    static bool IsFormatCommand(MenuCommand command);
     void HandleMenuCommand(MenuCommand command);
 
     // 编辑模式

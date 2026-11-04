@@ -7,6 +7,7 @@ namespace {
 constexpr const wchar_t* kSectionStyle    = L"style";
 constexpr const wchar_t* kSectionPosition = L"position";
 constexpr const wchar_t* kSectionHotkey   = L"hotkey";
+constexpr const wchar_t* kSectionFormat   = L"format";
 
 // 基准样式：缩放以此为准
 constexpr int kBaseFontSize = 28;
@@ -177,6 +178,16 @@ AppConfig Load() {
         }
     }
 
+    // 时间格式
+    GetPrivateProfileStringW(kSectionFormat, L"hour24", L"1", buffer, 128, path.c_str());
+    cfg.timeFormat.use24Hour = _wtoi(buffer) != 0;
+
+    GetPrivateProfileStringW(kSectionFormat, L"show_seconds", L"0", buffer, 128, path.c_str());
+    cfg.timeFormat.showSeconds = _wtoi(buffer) != 0;
+
+    GetPrivateProfileStringW(kSectionFormat, L"show_date", L"0", buffer, 128, path.c_str());
+    cfg.timeFormat.showDate = _wtoi(buffer) != 0;
+
     return cfg;
 }
 
@@ -214,6 +225,16 @@ bool Save(const AppConfig& cfg) {
     WritePrivateProfileStringW(kSectionHotkey, L"edit",
                                cfg.hotkeyEdit.ToString().c_str(), path.c_str());
 
+    wchar_t fmtBuf[8] = {};
+    swprintf(fmtBuf, 8, L"%d", cfg.timeFormat.use24Hour ? 1 : 0);
+    WritePrivateProfileStringW(kSectionFormat, L"hour24", fmtBuf, path.c_str());
+
+    swprintf(fmtBuf, 8, L"%d", cfg.timeFormat.showSeconds ? 1 : 0);
+    WritePrivateProfileStringW(kSectionFormat, L"show_seconds", fmtBuf, path.c_str());
+
+    swprintf(fmtBuf, 8, L"%d", cfg.timeFormat.showDate ? 1 : 0);
+    WritePrivateProfileStringW(kSectionFormat, L"show_date", fmtBuf, path.c_str());
+
     return true;
 }
 
@@ -244,6 +265,16 @@ bool ApplyCommand(AppConfig& cfg, MenuCommand command) {
     case MenuCommand::AnchorBottomLeft:   cfg.anchor = Anchor::BottomLeft;   return true;
     case MenuCommand::AnchorBottomCenter: cfg.anchor = Anchor::BottomCenter; return true;
     case MenuCommand::AnchorBottomRight:  cfg.anchor = Anchor::BottomRight;  return true;
+
+    // 时间格式
+    case MenuCommand::Hour24:
+        cfg.timeFormat.use24Hour = true; return true;
+    case MenuCommand::Hour12:
+        cfg.timeFormat.use24Hour = false; return true;
+    case MenuCommand::ToggleSeconds:
+        cfg.timeFormat.showSeconds = !cfg.timeFormat.showSeconds; return true;
+    case MenuCommand::ToggleDate:
+        cfg.timeFormat.showDate = !cfg.timeFormat.showDate; return true;
 
     // 热键：显示/隐藏
     case MenuCommand::ToggleHK_CtrlAltT:

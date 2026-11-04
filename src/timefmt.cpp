@@ -4,6 +4,21 @@
 
 namespace timefmt {
 
+namespace {
+
+// 把 0..23 转成 12 小时制的 1..12
+int To12Hour(int hour24) {
+    int h = hour24 % 12;
+    if (h == 0) h = 12;
+    return h;
+}
+
+const wchar_t* Meridiem(int hour24) {
+    return hour24 < 12 ? L"AM" : L"PM";
+}
+
+} // namespace
+
 std::wstring Format(const SYSTEMTIME& st, const TimeFormat& fmt) {
     wchar_t buf[64] = {};
     int used = 0;
@@ -17,17 +32,31 @@ std::wstring Format(const SYSTEMTIME& st, const TimeFormat& fmt) {
     }
 
     const int remain = 64 - used;
-    if (remain > 0) {
+    if (remain <= 0) return std::wstring(buf);
+
+    const int hour24 = static_cast<int>(st.wHour);
+    const int minute = static_cast<int>(st.wMinute);
+    const int second = static_cast<int>(st.wSecond);
+
+    if (fmt.use24Hour) {
         if (fmt.showSeconds) {
             swprintf(buf + used, static_cast<size_t>(remain), L"%02d:%02d:%02d",
-                     static_cast<int>(st.wHour),
-                     static_cast<int>(st.wMinute),
-                     static_cast<int>(st.wSecond));
+                     hour24, minute, second);
         } else {
             swprintf(buf + used, static_cast<size_t>(remain), L"%02d:%02d",
-                     static_cast<int>(st.wHour),
-                     static_cast<int>(st.wMinute));
+                     hour24, minute);
         }
+        return std::wstring(buf);
+    }
+
+    // 12 小时制：小时补零，AM/PM 后置
+    const int hour12 = To12Hour(hour24);
+    if (fmt.showSeconds) {
+        swprintf(buf + used, static_cast<size_t>(remain), L"%02d:%02d:%02d %ls",
+                 hour12, minute, second, Meridiem(hour24));
+    } else {
+        swprintf(buf + used, static_cast<size_t>(remain), L"%02d:%02d %ls",
+                 hour12, minute, Meridiem(hour24));
     }
 
     return std::wstring(buf);

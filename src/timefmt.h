@@ -5,8 +5,9 @@
 
 // 时间显示格式（值语义，可自由拷贝）
 struct TimeFormat {
-    bool showSeconds = true;
-    bool showDate    = false;
+    bool use24Hour   = true;   // false = 12 小时制（带 AM/PM）
+    bool showSeconds = false;  // 默认关闭，需手动开启
+    bool showDate    = false;  // 默认关闭，需手动开启
 };
 
 // 纯函数：不持有状态，不依赖窗口/渲染

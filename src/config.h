@@ -3,6 +3,7 @@
 #include "hotkey_key.h"
 #include "menu_commands.h"
 #include "renderer_types.h"
+#include "timefmt.h"
 
 #include <windows.h>
 #include <string>
@@ -26,6 +27,9 @@ struct AppConfig {
     // 热键
     HotkeySpec hotkeyToggle = hotkey::DefaultToggle();
     HotkeySpec hotkeyEdit   = hotkey::DefaultEdit();
+
+    // 时间格式（秒与日期默认关闭，需手动开启）
+    TimeFormat timeFormat = {};
 
     // 转换为渲染参数（应用整体缩放）
     TextStyle    ToTextStyle() const;

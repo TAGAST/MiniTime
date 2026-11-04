@@ -73,6 +73,19 @@ MenuCommand TrayMenu::Show(HWND owner, POINT screenPos, const TrayMenuState& sta
     }
     AppendMenuW(styleMenu, MF_POPUP, reinterpret_cast<UINT_PTR>(colorMenu), L"颜色");
 
+    // 时间格式
+    HMENU timeMenu = CreatePopupMenu();
+    AppendChecked(timeMenu, static_cast<UINT>(MenuCommand::Hour24), L"24 小时制",
+                  state.config.timeFormat.use24Hour);
+    AppendChecked(timeMenu, static_cast<UINT>(MenuCommand::Hour12), L"12 小时制 (AM/PM)",
+                  !state.config.timeFormat.use24Hour);
+    AppendMenuW(timeMenu, MF_SEPARATOR, 0, nullptr);
+    AppendChecked(timeMenu, static_cast<UINT>(MenuCommand::ToggleSeconds), L"显示秒",
+                  state.config.timeFormat.showSeconds);
+    AppendChecked(timeMenu, static_cast<UINT>(MenuCommand::ToggleDate), L"显示日期",
+                  state.config.timeFormat.showDate);
+    AppendMenuW(styleMenu, MF_POPUP, reinterpret_cast<UINT_PTR>(timeMenu), L"时间");
+
     AppendMenuW(menu, MF_POPUP, reinterpret_cast<UINT_PTR>(styleMenu), L"样式");
 
     // ---- 位置子菜单（九宫格）----

@@ -58,6 +58,12 @@ enum class MenuCommand : int {
     EditHK_F11        = 2104,
     EditHK_F12        = 2105,
     EditHK_None2      = 2106,
+
+    // 时间格式
+    Hour24          = 3001,
+    Hour12          = 3002,
+    ToggleSeconds   = 3003,
+    ToggleDate      = 3004,
 };
 
 // 九宫格锚点；Custom 表示由自由拖动产生的绝对坐标
