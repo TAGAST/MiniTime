@@ -44,6 +44,18 @@ public:
     // 注意：不能用 LastWidth/LastHeight —— 编辑期间它们记录的是放大后的尺寸。
     SIZE MeasureNormalSize() const;
 
+    // 主文字左上角相对于窗口左上角的偏移。
+    // 编辑模式与常态不同（编辑模式多出底板内边距与提示行），
+    // 换算位置时必须用文字位置而非窗口中心作为基准。
+    POINT MainTextOffset() const;
+
+    int MainTextWidth() const { return mainTextWidth_; }
+
+    // 常态下主文字相对窗口左上角的偏移（不含编辑模式的内边距）
+    POINT NormalTextOffset() const {
+        return POINT{ painter_.PaddingX(), painter_.PaddingY() };
+    }
+
     LayoutConfig& MutableLayout() { return layout_; }
 
 private:
@@ -63,6 +75,8 @@ private:
     const wchar_t* editHint_ = L"";
     int  lastWidth_  = 0;
     int  lastHeight_ = 0;
+    int  mainTextWidth_  = 0;
+    int  mainTextHeight_ = 0;
 
     TimeFormat      format_  = {};
     TextStyle       style_   = {};

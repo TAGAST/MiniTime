@@ -73,8 +73,10 @@ bool ClockPresenter::Render(HWND hwnd) {
         if (!surface_.EnsureSize(width, height)) return false;
     }
 
-    lastWidth_  = width;
-    lastHeight_ = height;
+    lastWidth_       = width;
+    lastHeight_      = height;
+    mainTextWidth_   = textSize.cx;
+    mainTextHeight_  = textSize.cy;
 
     surface_.Clear();
 
@@ -173,6 +175,26 @@ void ClockPresenter::EraseRegion(HWND hwnd, int x, int y, int width, int height)
 
     DeleteObject(bitmap);
     ReleaseDC(nullptr, screenDc);
+}
+
+POINT ClockPresenter::MainTextOffset() const {
+    // 与 Render 中的绘制坐标保持一致
+    const int editPad = editAppearance_ ? 10 : 0;
+
+    POINT offset = { 0, 0 };
+
+    if (editAppearance_) {
+        // 编辑模式主文字水平居中
+        offset.x = (lastWidth_ - mainTextWidth_) / 2;
+        offset.y = painter_.PaddingY() + editPad;
+    } else {
+        offset.x = painter_.PaddingX();
+        offset.y = painter_.PaddingY();
+    }
+
+    if (offset.x < 0) offset.x = 0;
+    if (offset.y < 0) offset.y = 0;
+    return offset;
 }
 
 SIZE ClockPresenter::MeasureNormalSize() const {

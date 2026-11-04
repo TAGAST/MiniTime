@@ -388,29 +388,34 @@ void App::OnEditFinishedThunk(void* context, bool commit) {
 }
 
 POINT App::ComputeCommittedPosition() const {
-    // 编辑模式的底板比常态窗口更大，用户拖动时参照的是底板中心。
-    // 若直接保存左上角，确认后窗口收缩会让人感觉"往左上跑了"。
-    // 因此按中心对齐换算：保存后的窗口中心 == 拖动时的底板中心。
+    // 编辑模式与常态的窗口尺寸、文字位置都不同，直接保存左上角会让文字跳动。
+    // 正确的基准是"主文字"：让保存前后的文字屏幕位置完全一致。
     const RECT editRect = overlay_.Bounds();
 
-    const int editWidth  = editRect.right - editRect.left;
-    const int editHeight = editRect.bottom - editRect.top;
+    const POINT normalOffset = presenter_.NormalTextOffset();
 
-    // 必须重新测量常态尺寸：编辑期间 LastWidth/LastHeight 记录的是放大后的尺寸，
-    // 直接使用会让两者相等，中心换算永远不会触发。
-    const SIZE normal = presenter_.MeasureNormalSize();
-    const int normalWidth  = normal.cx;
-    const int normalHeight = normal.cy;
+    // 编辑模式下的窗口左上角
+    const int editTextX = editRect.left;
+    const int editTextY = editRect.top;
 
-    POINT pos = { editRect.left, editRect.top };
+    // 文字在编辑底板中的位置
+    POINT editOffset = presenter_.MainTextOffset();
 
-    if (normalWidth > 0 && normalHeight > 0 &&
-        (normalWidth != editWidth || normalHeight != editHeight)) {
-        const int editCenterX = editRect.left + editWidth / 2;
-        const int editCenterY = editRect.top + editHeight / 2;
-        pos.x = editCenterX - normalWidth / 2;
-        pos.y = editCenterY - normalHeight / 2;
+    // 编辑模式文字水平居中，居中量必须以"当前真实窗口宽度"为基准：
+    // lastWidth_ 可能还是上一帧的值（例如刚进入编辑模式的过渡帧），
+    // 直接用会导致水平方向偏移。
+    if (presenter_.EditAppearance()) {
+        const int editWidth = editRect.right - editRect.left;
+        const int textWidth = presenter_.MainTextWidth();
+        if (textWidth > 0 && editWidth > textWidth) {
+            editOffset.x = (editWidth - textWidth) / 2;
+        }
     }
+
+    // 反推常态窗口左上角：使文字落在同一屏幕坐标
+    POINT pos = { 0, 0 };
+    pos.x = editTextX + editOffset.x - normalOffset.x;
+    pos.y = editTextY + editOffset.y - normalOffset.y;
 
     return pos;
 }
