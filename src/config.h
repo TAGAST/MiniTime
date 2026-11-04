@@ -1,5 +1,6 @@
 #pragma once
 
+#include "hotkey_key.h"
 #include "menu_commands.h"
 #include "renderer_types.h"
 
@@ -21,6 +22,10 @@ struct AppConfig {
     // 自由拖动产生的绝对坐标（anchor == Custom 时生效）
     int    customX = 0;
     int    customY = 0;
+
+    // 热键
+    HotkeySpec hotkeyToggle = hotkey::DefaultToggle();
+    HotkeySpec hotkeyEdit   = hotkey::DefaultEdit();
 
     // 转换为渲染参数（应用整体缩放）
     TextStyle    ToTextStyle() const;

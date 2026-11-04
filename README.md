@@ -13,7 +13,8 @@
 | **逐像素透明** | 文字抗锯齿，无黑边框、无背景色块 |
 | **始终置顶** | 覆盖在窗口化 / 无边框全屏的游戏画面之上 |
 | **不进 Alt+Tab** | 工具窗口样式，不占任务栏 |
-| **全局热键** | `Ctrl+Alt+T` 切换显示 / 隐藏 |
+| **自定义热键** | 托盘菜单可选预设，或编辑配置文件任意指定 |
+| **全局热键** | 默认 `Ctrl+Alt+T` 切换显示，`Ctrl+Alt+E` 调整位置 |
 | **系统托盘** | 常驻托盘，右键菜单开关显示、调整样式与位置、退出 |
 | **样式自定义** | 整体缩放、字重、预设 5 色，即时生效 |
 | **位置自定义** | 九宫格锚点（上/中/下 × 左/中/右） |
@@ -51,6 +52,7 @@ MiniTime · 显示中          ← 状态行
 退出
 ```
 
+- **热键** ▸ 显示/隐藏、调整位置 —— 各 5 组预设 + 禁用
 - 菜单项会根据当前状态变化（显示中文案变为"隐藏"，反之亦然）
 - **大小**为整体缩放：字号与内边距同比变化
 - 样式与位置修改后**立即生效并写入配置文件**，重启保持
@@ -74,9 +76,28 @@ text_color = #FFFFFF ; RRGGBB
 anchor = top-right   ; top-left / top-center / top-right
                      ; middle-left / center / middle-right
                      ; bottom-left / bottom-center / bottom-right
+                     ; custom（自由拖动后自动切换）
 margin_x = 24
 margin_y = 20
+
+[hotkey]
+toggle = Ctrl+Alt+T  ; none 表示禁用
+edit   = Ctrl+Alt+E
 ```
+
+### 热键写法
+
+`Ctrl` / `Alt` / `Shift` / `Win` 任意组合，加字母、数字或 `F1`-`F24`。
+大小写不敏感，修饰键顺序无关。
+
+```ini
+toggle = Ctrl+Shift+T
+toggle = F9            ; 功能键可以不加修饰
+toggle = none          ; 禁用
+```
+
+普通字母键**必须带至少一个修饰键**，否则会吞掉游戏内该键的输入。
+无效写法会自动回退到默认值，不会导致程序无法启动。
 
 直接编辑该文件也生效，重启程序后读取。
 
@@ -145,7 +166,8 @@ src/
 ├─ layered_surface.cpp   分层窗口像素缓冲与提交
 ├─ gdi_text_painter.cpp  字体与文字绘制
 ├─ overlay_window.cpp    HWND 创建与窗口样式
-├─ hotkey.cpp            全局热键注册
+├─ hotkey.cpp            全局热键注册（多热键管理）
+├─ hotkey_key.cpp        热键值对象与字符串互转
 ├─ tray_icon.cpp         Shell_NotifyIcon 封装
 ├─ tray_menu.cpp         右键菜单构建与命令返回
 ├─ autostart.cpp         开机自启注册表读写

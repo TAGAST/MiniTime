@@ -6,6 +6,18 @@ void AppendChecked(HMENU menu, UINT id, const wchar_t* text, bool checked) {
     AppendMenuW(menu, MF_STRING | (checked ? MF_CHECKED : 0), id, text);
 }
 
+HotkeySpec MakeHK(UINT modifiers, UINT vk) {
+    HotkeySpec spec = {};
+    spec.modifiers = modifiers;
+    spec.virtualKey = vk;
+    return spec;
+}
+
+bool SameHotkey(const HotkeySpec& a, const HotkeySpec& b) {
+    if (a.IsEmpty() || b.IsEmpty()) return a.IsEmpty() && b.IsEmpty();
+    return a.modifiers == b.modifiers && a.virtualKey == b.virtualKey;
+}
+
 } // namespace
 
 TrayMenu::~TrayMenu() = default;
@@ -86,6 +98,48 @@ MenuCommand TrayMenu::Show(HWND owner, POINT screenPos, const TrayMenuState& sta
                 static_cast<UINT>(MenuCommand::EnterEditMode), L"调整位置…");
 
     AppendMenuW(menu, MF_POPUP, reinterpret_cast<UINT_PTR>(positionMenu), L"位置");
+
+    // ---- 热键子菜单 ----
+    HMENU hotkeyMenu = CreatePopupMenu();
+
+    HMENU toggleMenu = CreatePopupMenu();
+    struct HKItem { MenuCommand cmd; const wchar_t* label; HotkeySpec spec; };
+    const HKItem toggleKeys[] = {
+        { MenuCommand::ToggleHK_CtrlAltT,   L"Ctrl+Alt+T",   MakeHK(MOD_CONTROL | MOD_ALT, 'T') },
+        { MenuCommand::ToggleHK_CtrlShiftT, L"Ctrl+Shift+T", MakeHK(MOD_CONTROL | MOD_SHIFT, 'T') },
+        { MenuCommand::ToggleHK_AltT,       L"Alt+T",        MakeHK(MOD_ALT, 'T') },
+        { MenuCommand::ToggleHK_F9,         L"F9",           MakeHK(0, VK_F9) },
+        { MenuCommand::ToggleHK_F10,        L"F10",          MakeHK(0, VK_F10) },
+    };
+    for (const auto& item : toggleKeys) {
+        AppendChecked(toggleMenu, static_cast<UINT>(item.cmd), item.label,
+                      SameHotkey(state.config.hotkeyToggle, item.spec));
+    }
+    AppendMenuW(toggleMenu, MF_SEPARATOR, 0, nullptr);
+    AppendChecked(toggleMenu, static_cast<UINT>(MenuCommand::ToggleHK_None1), L"禁用",
+                  state.config.hotkeyToggle.IsEmpty());
+
+    AppendMenuW(hotkeyMenu, MF_POPUP, reinterpret_cast<UINT_PTR>(toggleMenu), L"显示 / 隐藏");
+
+    HMENU editMenu = CreatePopupMenu();
+    const HKItem editKeys[] = {
+        { MenuCommand::EditHK_CtrlAltE,   L"Ctrl+Alt+E",   MakeHK(MOD_CONTROL | MOD_ALT, 'E') },
+        { MenuCommand::EditHK_CtrlShiftE, L"Ctrl+Shift+E", MakeHK(MOD_CONTROL | MOD_SHIFT, 'E') },
+        { MenuCommand::EditHK_AltE,       L"Alt+E",        MakeHK(MOD_ALT, 'E') },
+        { MenuCommand::EditHK_F11,        L"F11",          MakeHK(0, VK_F11) },
+        { MenuCommand::EditHK_F12,        L"F12",          MakeHK(0, VK_F12) },
+    };
+    for (const auto& item : editKeys) {
+        AppendChecked(editMenu, static_cast<UINT>(item.cmd), item.label,
+                      SameHotkey(state.config.hotkeyEdit, item.spec));
+    }
+    AppendMenuW(editMenu, MF_SEPARATOR, 0, nullptr);
+    AppendChecked(editMenu, static_cast<UINT>(MenuCommand::EditHK_None2), L"禁用",
+                  state.config.hotkeyEdit.IsEmpty());
+
+    AppendMenuW(hotkeyMenu, MF_POPUP, reinterpret_cast<UINT_PTR>(editMenu), L"调整位置");
+
+    AppendMenuW(menu, MF_POPUP, reinterpret_cast<UINT_PTR>(hotkeyMenu), L"热键");
 
     AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
 

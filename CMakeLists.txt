@@ -22,6 +22,7 @@ set(MINITIME_SOURCES
     src/gdi_text_painter.cpp
     src/timefmt.cpp
     src/hotkey.cpp
+    src/hotkey_key.cpp
     src/tray_icon.cpp
     src/tray_menu.cpp
     src/autostart.cpp

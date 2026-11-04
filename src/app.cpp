@@ -6,15 +6,8 @@
 namespace {
 
 constexpr UINT_PTR kRefreshTimerId = 1;
-constexpr int      kHotkeyMods     = MOD_CONTROL | MOD_ALT;
-constexpr UINT     kHotkeyVirtual  = 'T';
-constexpr int      kHotkeyEditId   = 2;
-constexpr UINT     kHotkeyEditKey  = 'E';
-constexpr const wchar_t* kRouterClass = L"MiniTimeRouter";
 
-void ReportHotkeyFailure() {
-    OutputDebugStringW(L"MiniTime: hotkey Ctrl+Alt+T unavailable\n");
-}
+constexpr const wchar_t* kRouterClass = L"MiniTimeRouter";
 
 } // namespace
 
@@ -116,12 +109,8 @@ int App::Run(HINSTANCE instance, int showCommand) {
     timerMs_ = timefmt::RefreshIntervalMs(format_);
     SetTimer(router_, kRefreshTimerId, timerMs_, nullptr);
 
-    if (!hotkeys_.Register(router_, kHotkeyMods, kHotkeyVirtual)) {
-        ReportHotkeyFailure();
-    }
-
-    // 编辑模式热键（可选功能，失败不影响主功能）
-    RegisterHotKey(router_, kHotkeyEditId, kHotkeyMods | MOD_NOREPEAT, kHotkeyEditKey);
+    hotkeys_.SetWindow(router_);
+    RegisterHotkeysFromConfig();
 
     CreateTrayIcon();
     UpdateTrayTooltip();
@@ -175,13 +164,17 @@ LRESULT App::Route(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         if (wParam == kRefreshTimerId) { OnTick(); return 0; }
         break;
 
-    case WM_HOTKEY:
-        if (wParam == kHotkeyEditId) {
-            EnterEditMode();
-        } else {
-            OnToggleVisibility();
+    case WM_HOTKEY: {
+        HotkeyId id = HotkeyId::Toggle;
+        if (HotkeyRegistry::FromMessageId(wParam, id)) {
+            if (id == HotkeyId::Edit) {
+                EnterEditMode();
+            } else {
+                OnToggleVisibility();
+            }
         }
         return 0;
+    }
 
     case WM_APP + 1:
         // 第二个实例启动时请求：把叠加层重新显示出来
@@ -262,6 +255,11 @@ void App::HandleMenuCommand(MenuCommand command) {
         ApplyConfigToPresenter();
         RenderNow();
         config::Save(config_);
+
+        // 热键类命令需要重新注册才能生效
+        if (IsHotkeyCommand(command)) {
+            RegisterHotkeysFromConfig();
+        }
     }
 }
 
@@ -340,6 +338,25 @@ void App::ExitEditMode(bool commit) {
     ApplyConfigToPresenter();
     RenderNow();
     UpdateTrayTooltip();
+}
+
+bool App::IsHotkeyCommand(MenuCommand command) {
+    const int value = static_cast<int>(command);
+    return value >= 2001 && value <= 2106;
+}
+
+void App::RegisterHotkeysFromConfig() {
+    // 两个热键不允许绑定成同一个键
+    if (!config_.hotkeyToggle.IsEmpty() && !config_.hotkeyEdit.IsEmpty() &&
+        config_.hotkeyToggle.modifiers == config_.hotkeyEdit.modifiers &&
+        config_.hotkeyToggle.virtualKey == config_.hotkeyEdit.virtualKey) {
+        // 冲突时保留切换热键，禁用调整热键，避免两者都失效
+        config_.hotkeyEdit = HotkeySpec{};
+        config::Save(config_);
+    }
+
+    hotkeys_.Register(HotkeyId::Toggle, config_.hotkeyToggle);
+    hotkeys_.Register(HotkeyId::Edit, config_.hotkeyEdit);
 }
 
 void App::OnTick() {

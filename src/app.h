@@ -32,6 +32,8 @@ private:
     void UpdateTrayTooltip();
 
     void ShowTrayMenu();
+    void RegisterHotkeysFromConfig();
+    static bool IsHotkeyCommand(MenuCommand command);
     void HandleMenuCommand(MenuCommand command);
 
     // 编辑模式

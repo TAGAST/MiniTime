@@ -6,6 +6,7 @@ namespace {
 
 constexpr const wchar_t* kSectionStyle    = L"style";
 constexpr const wchar_t* kSectionPosition = L"position";
+constexpr const wchar_t* kSectionHotkey   = L"hotkey";
 
 // 基准样式：缩放以此为准
 constexpr int kBaseFontSize = 28;
@@ -49,6 +50,13 @@ bool IsDirectoryWritable(const std::wstring& dir) {
 
     CloseHandle(file);
     return true;
+}
+
+HotkeySpec MakeHotkey(UINT modifiers, UINT vk) {
+    HotkeySpec spec = {};
+    spec.modifiers = modifiers;
+    spec.virtualKey = vk;
+    return spec;
 }
 
 int ScaleBy(int base, int percent) {
@@ -145,6 +153,30 @@ AppConfig Load() {
     GetPrivateProfileStringW(kSectionPosition, L"custom_y", L"0", buffer, 128, path.c_str());
     cfg.customY = _wtoi(buffer);
 
+    // 热键：解析失败时回退默认值，绝不因配置错误导致热键全失效
+    wchar_t hotkeyBuffer[64] = {};
+    GetPrivateProfileStringW(kSectionHotkey, L"toggle", L"Ctrl+Alt+T",
+                             hotkeyBuffer, 64, path.c_str());
+    {
+        HotkeySpec parsed = hotkey::Parse(hotkeyBuffer);
+        if (parsed.IsEmpty() && _wcsicmp(hotkeyBuffer, L"none") != 0) {
+            cfg.hotkeyToggle = hotkey::DefaultToggle();
+        } else {
+            cfg.hotkeyToggle = parsed;
+        }
+    }
+
+    GetPrivateProfileStringW(kSectionHotkey, L"edit", L"Ctrl+Alt+E",
+                             hotkeyBuffer, 64, path.c_str());
+    {
+        HotkeySpec parsed = hotkey::Parse(hotkeyBuffer);
+        if (parsed.IsEmpty() && _wcsicmp(hotkeyBuffer, L"none") != 0) {
+            cfg.hotkeyEdit = hotkey::DefaultEdit();
+        } else {
+            cfg.hotkeyEdit = parsed;
+        }
+    }
+
     return cfg;
 }
 
@@ -177,6 +209,11 @@ bool Save(const AppConfig& cfg) {
     swprintf(buffer, 64, L"%d", cfg.customY);
     WritePrivateProfileStringW(kSectionPosition, L"custom_y", buffer, path.c_str());
 
+    WritePrivateProfileStringW(kSectionHotkey, L"toggle",
+                               cfg.hotkeyToggle.ToString().c_str(), path.c_str());
+    WritePrivateProfileStringW(kSectionHotkey, L"edit",
+                               cfg.hotkeyEdit.ToString().c_str(), path.c_str());
+
     return true;
 }
 
@@ -207,6 +244,34 @@ bool ApplyCommand(AppConfig& cfg, MenuCommand command) {
     case MenuCommand::AnchorBottomLeft:   cfg.anchor = Anchor::BottomLeft;   return true;
     case MenuCommand::AnchorBottomCenter: cfg.anchor = Anchor::BottomCenter; return true;
     case MenuCommand::AnchorBottomRight:  cfg.anchor = Anchor::BottomRight;  return true;
+
+    // 热键：显示/隐藏
+    case MenuCommand::ToggleHK_CtrlAltT:
+        cfg.hotkeyToggle = MakeHotkey(MOD_CONTROL | MOD_ALT, 'T'); return true;
+    case MenuCommand::ToggleHK_CtrlShiftT:
+        cfg.hotkeyToggle = MakeHotkey(MOD_CONTROL | MOD_SHIFT, 'T'); return true;
+    case MenuCommand::ToggleHK_AltT:
+        cfg.hotkeyToggle = MakeHotkey(MOD_ALT, 'T'); return true;
+    case MenuCommand::ToggleHK_F9:
+        cfg.hotkeyToggle = MakeHotkey(0, VK_F9); return true;
+    case MenuCommand::ToggleHK_F10:
+        cfg.hotkeyToggle = MakeHotkey(0, VK_F10); return true;
+    case MenuCommand::ToggleHK_None1:
+        cfg.hotkeyToggle = HotkeySpec{}; return true;
+
+    // 热键：调整位置
+    case MenuCommand::EditHK_CtrlAltE:
+        cfg.hotkeyEdit = MakeHotkey(MOD_CONTROL | MOD_ALT, 'E'); return true;
+    case MenuCommand::EditHK_CtrlShiftE:
+        cfg.hotkeyEdit = MakeHotkey(MOD_CONTROL | MOD_SHIFT, 'E'); return true;
+    case MenuCommand::EditHK_AltE:
+        cfg.hotkeyEdit = MakeHotkey(MOD_ALT, 'E'); return true;
+    case MenuCommand::EditHK_F11:
+        cfg.hotkeyEdit = MakeHotkey(0, VK_F11); return true;
+    case MenuCommand::EditHK_F12:
+        cfg.hotkeyEdit = MakeHotkey(0, VK_F12); return true;
+    case MenuCommand::EditHK_None2:
+        cfg.hotkeyEdit = HotkeySpec{}; return true;
 
     default:
         return false;

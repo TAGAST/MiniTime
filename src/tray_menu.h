@@ -1,6 +1,7 @@
 #pragma once
 
 #include "config.h"
+#include "hotkey_key.h"
 #include "menu_commands.h"
 
 #include <windows.h>

@@ -42,6 +42,22 @@ enum class MenuCommand : int {
 
     // 编辑模式
     EnterEditMode = 1501,
+
+    // 热键：显示/隐藏
+    ToggleHK_CtrlAltT   = 2001,
+    ToggleHK_CtrlShiftT = 2002,
+    ToggleHK_AltT       = 2003,
+    ToggleHK_F9         = 2004,
+    ToggleHK_F10        = 2005,
+    ToggleHK_None1      = 2006,
+
+    // 热键：调整位置
+    EditHK_CtrlAltE   = 2101,
+    EditHK_CtrlShiftE = 2102,
+    EditHK_AltE       = 2103,
+    EditHK_F11        = 2104,
+    EditHK_F12        = 2105,
+    EditHK_None2      = 2106,
 };
 
 // 九宫格锚点；Custom 表示由自由拖动产生的绝对坐标
