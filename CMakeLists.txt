@@ -25,6 +25,7 @@ set(MINITIME_SOURCES
     src/tray_icon.cpp
     src/tray_menu.cpp
     src/autostart.cpp
+    src/config.cpp
     res/resource.rc
 )
 

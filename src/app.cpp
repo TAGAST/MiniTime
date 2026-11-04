@@ -10,7 +10,6 @@ constexpr int      kHotkeyMods     = MOD_CONTROL | MOD_ALT;
 constexpr UINT     kHotkeyVirtual  = 'T';
 constexpr const wchar_t* kRouterClass = L"MiniTimeRouter";
 
-// 热键冲突时不影响其余功能
 void ReportHotkeyFailure() {
     OutputDebugStringW(L"MiniTime: hotkey Ctrl+Alt+T unavailable\n");
 }
@@ -39,7 +38,6 @@ bool App::CreateRouterWindow() {
 }
 
 bool App::CreateTrayIcon() {
-    // 自定义消息，避免与 WM_USER 区段冲突
     trayCallback_ = RegisterWindowMessageW(L"MiniTimeTrayCallback");
 
     appIcon_ = static_cast<HICON>(
@@ -58,14 +56,28 @@ void App::UpdateTrayTooltip() {
     trayIcon_.SetTooltip(text);
 }
 
+void App::ApplyConfigToPresenter() {
+    presenter_.SetStyle(config_.ToTextStyle());
+    presenter_.SetLayout(config_.ToLayoutConfig());
+    presenter_.SetFormat(format_);
+}
+
+void App::RenderNow() {
+    if (overlay_.IsVisible()) {
+        presenter_.Render(overlay_.Handle());
+    }
+}
+
 int App::Run(HINSTANCE instance, int showCommand) {
     instance_ = instance;
     (void)showCommand;
 
+    config_ = config::Load();
+
     if (!overlay_.Create(instance)) return 1;
     if (!CreateRouterWindow()) return 1;
 
-    presenter_.SetFormat(format_);
+    ApplyConfigToPresenter();
     presenter_.Render(overlay_.Handle());
 
     timerMs_ = timefmt::RefreshIntervalMs(format_);
@@ -113,7 +125,10 @@ LRESULT App::Route(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     }
 
     if (msg == trayCallback_) {
-        OnTrayMessage(lParam);
+        const UINT event = LOWORD(lParam);
+        if (event == WM_LBUTTONUP || event == WM_RBUTTONUP || event == WM_CONTEXTMENU) {
+            ShowTrayMenu();
+        }
         return 0;
     }
 
@@ -127,13 +142,16 @@ LRESULT App::Route(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         return 0;
 
     case WM_DISPLAYCHANGE:
+        RenderNow();
+        return 0;
+
     case WM_TIMECHANGE:
-        presenter_.Render(overlay_.Handle());
+        RenderNow();
         return 0;
 
     case WM_POWERBROADCAST:
         if (wParam == PBT_APMRESUMEAUTOMATIC || wParam == PBT_APMRESUMESUSPEND) {
-            presenter_.Render(overlay_.Handle());
+            RenderNow();
         }
         return 0;
 
@@ -147,23 +165,6 @@ LRESULT App::Route(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     return DefWindowProcW(hwnd, msg, wParam, lParam);
 }
 
-void App::OnTrayMessage(LPARAM lParam) {
-    const UINT event = LOWORD(lParam);
-
-    switch (event) {
-    case WM_LBUTTONUP:
-    case WM_RBUTTONUP:
-    case WM_CONTEXTMENU: {
-        POINT pt = {};
-        GetCursorPos(&pt);
-        ShowTrayMenu();
-        break;
-    }
-    default:
-        break;
-    }
-}
-
 void App::ShowTrayMenu() {
     POINT pt = {};
     GetCursorPos(&pt);
@@ -171,40 +172,53 @@ void App::ShowTrayMenu() {
     TrayMenuState state = {};
     state.visible   = overlay_.IsVisible();
     state.autostart = autostart::IsEnabled();
+    state.config    = config_;
 
-    const TrayCommand command = trayMenu_.Show(router_, pt, state);
+    const MenuCommand command = trayMenu_.Show(router_, pt, state);
+    HandleMenuCommand(command);
+}
+
+void App::HandleMenuCommand(MenuCommand command) {
+    if (command == MenuCommand::None) return;
 
     switch (command) {
-    case TrayCommand::ToggleShow:
+    case MenuCommand::ToggleShow:
         OnToggleVisibility();
-        break;
-    case TrayCommand::Autostart:
-        OnToggleAutostart();
-        break;
-    case TrayCommand::Exit:
+        return;
+
+    case MenuCommand::Autostart: {
+        const bool next = !autostart::IsEnabled();
+        autostart::SetEnabled(next);
+        return;
+    }
+
+    case MenuCommand::Exit:
         DestroyWindow(router_);
-        break;
+        return;
+
     default:
         break;
+    }
+
+    // 样式与位置类命令：修改配置 -> 立即生效 -> 持久化
+    if (config::ApplyCommand(config_, command)) {
+        ApplyConfigToPresenter();
+        RenderNow();
+        config::Save(config_);
     }
 }
 
 void App::OnTick() {
-    if (overlay_.IsVisible()) presenter_.Render(overlay_.Handle());
+    RenderNow();
 }
 
 void App::OnToggleVisibility() {
     overlay_.ToggleVisibility();
     if (overlay_.IsVisible()) {
         overlay_.RaiseTopmost();
-        presenter_.Render(overlay_.Handle());
+        RenderNow();
     }
     UpdateTrayTooltip();
-}
-
-void App::OnToggleAutostart() {
-    const bool next = !autostart::IsEnabled();
-    autostart::SetEnabled(next);
 }
 
 void App::Shutdown() {

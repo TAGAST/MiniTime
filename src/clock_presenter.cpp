@@ -40,10 +40,47 @@ void ClockPresenter::ComputePosition(int width, int height, int& x, int& y) cons
     const int screenWidth  = GetSystemMetrics(SM_CXSCREEN);
     const int screenHeight = GetSystemMetrics(SM_CYSCREEN);
 
-    x = screenWidth - width - layout_.marginRight;
-    y = layout_.marginTop;
+    // 水平方向
+    switch (layout_.anchor) {
+    case Anchor::TopLeft:
+    case Anchor::MiddleLeft:
+    case Anchor::BottomLeft:
+        x = layout_.marginX;
+        break;
 
+    case Anchor::TopCenter:
+    case Anchor::Center:
+    case Anchor::BottomCenter:
+        x = (screenWidth - width) / 2;
+        break;
+
+    default: // 右侧三格
+        x = screenWidth - width - layout_.marginX;
+        break;
+    }
+
+    // 垂直方向
+    switch (layout_.anchor) {
+    case Anchor::TopLeft:
+    case Anchor::TopCenter:
+    case Anchor::TopRight:
+        y = layout_.marginY;
+        break;
+
+    case Anchor::MiddleLeft:
+    case Anchor::Center:
+    case Anchor::MiddleRight:
+        y = (screenHeight - height) / 2;
+        break;
+
+    default: // 底部三格
+        y = screenHeight - height - layout_.marginY;
+        break;
+    }
+
+    // 防止跑到屏幕外
     if (x < 0) x = 0;
     if (y < 0) y = 0;
+    if (x > screenWidth - width)   x = screenWidth - width;
     if (y > screenHeight - height) y = screenHeight - height;
 }

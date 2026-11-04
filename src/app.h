@@ -1,7 +1,9 @@
 #pragma once
 
 #include "clock_presenter.h"
+#include "config.h"
 #include "hotkey.h"
+#include "menu_commands.h"
 #include "overlay_window.h"
 #include "renderer_types.h"
 #include "timefmt.h"
@@ -26,11 +28,13 @@ private:
     bool CreateTrayIcon();
     void UpdateTrayTooltip();
 
+    void ShowTrayMenu();
+    void HandleMenuCommand(MenuCommand command);
+    void ApplyConfigToPresenter();
+    void RenderNow();
+
     void OnTick();
     void OnToggleVisibility();
-    void OnToggleAutostart();
-    void OnTrayMessage(LPARAM lParam);
-    void ShowTrayMenu();
     void Shutdown();
 
     HINSTANCE      instance_      = nullptr;
@@ -43,6 +47,7 @@ private:
     HICON          appIcon_       = nullptr;
     UINT           trayCallback_  = 0;
     TimeFormat     format_        = {};
+    AppConfig      config_        = {};
     UINT           timerMs_       = 0;
     bool           shuttingDown_  = false;
 };
