@@ -26,6 +26,14 @@ public:
     // GDI 绘制后 alpha 恒为 0；用亮度推导覆盖率
     void ApplyAlphaFromLuminance() const;
 
+    // 在文字下层合成一层半透明背景（正确的 alpha 合成）。
+    // 用于编辑模式：既提供视觉提示，也让整个窗口可被点击（分层窗口的
+    // 命中测试基于 alpha，alpha 为 0 的像素收不到鼠标消息）。
+    void CompositeOverBackground(COLORREF background, BYTE backgroundAlpha) const;
+
+    // 画一个 1px 边框（编辑模式的视觉边界）
+    void DrawBorder(COLORREF color, BYTE alpha) const;
+
     // 提交到屏幕指定位置
     bool Present(HWND hwnd, int x, int y) const;
 

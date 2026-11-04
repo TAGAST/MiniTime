@@ -29,6 +29,14 @@ public:
     // 暂停/恢复自动定位：编辑模式期间由拖动逻辑接管窗口位置
     void SetLayoutSuspended(bool suspended) { suspendLayout_ = suspended; }
 
+    // 编辑模式外观：半透明底板 + 边框，便于识别与命中
+    void SetEditAppearance(bool enabled) { editAppearance_ = enabled; }
+    bool EditAppearance() const { return editAppearance_; }
+
+    // 当前窗口尺寸（编辑模式改动背景后需要同步几何）
+    int LastWidth() const { return lastWidth_; }
+    int LastHeight() const { return lastHeight_; }
+
     LayoutConfig& MutableLayout() { return layout_; }
 
 private:
@@ -44,6 +52,9 @@ private:
     RECT lastGeometry_ = { 0, 0, 0, 0 };
     bool hasGeometry_  = false;
     bool suspendLayout_ = false;
+    bool editAppearance_ = false;
+    int  lastWidth_  = 0;
+    int  lastHeight_ = 0;
 
     TimeFormat      format_  = {};
     TextStyle       style_   = {};

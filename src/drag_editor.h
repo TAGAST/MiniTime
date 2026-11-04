@@ -13,6 +13,10 @@ public:
     // 进入编辑模式；返回 false 表示失败
     bool Begin(HWND overlay, HWND host, int timeoutMs);
 
+    // 位置变化后的回调：用于立即重绘，避免拖动时内容滞后
+    using MovedCallback = void (*)(void* context);
+    void SetMovedCallback(MovedCallback cb, void* context);
+
     // 退出编辑模式。commit=true 表示保留当前位置，false 表示还原
     void End(bool commit);
 
@@ -30,6 +34,7 @@ public:
 private:
     void MoveTo(int x, int y);
     void ClampToScreen(int& x, int& y) const;
+    void NotifyMoved();
 
     HWND  overlay_    = nullptr;
     HWND  host_       = nullptr;
@@ -37,7 +42,9 @@ private:
     bool  dragging_   = false;
     bool  moved_      = false;
 
-    POINT dragStartCursor_ = { 0, 0 };
+    POINT dragStartCursor_ = { 0, 0 };   // 屏幕绝对坐标
+    MovedCallback movedCb_ = nullptr;
+    void*         movedCtx_ = nullptr;
     int   startX_ = 0;
     int   startY_ = 0;
     int   origX_  = 0;

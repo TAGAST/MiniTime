@@ -265,6 +265,14 @@ void App::HandleMenuCommand(MenuCommand command) {
     }
 }
 
+void App::OnDragMovedThunk(void* context) {
+    auto* self = static_cast<App*>(context);
+    if (!self) return;
+
+    // 位置已由 DragEditor 设置，这里只重绘内容
+    self->presenter_.Render(self->overlay_.Handle());
+}
+
 bool App::OverlayMessageThunk(void* context, HWND hwnd, UINT msg,
                               WPARAM wParam, LPARAM lParam) {
     auto* self = static_cast<App*>(context);
@@ -287,8 +295,19 @@ void App::EnterEditMode() {
     // 编辑期间由拖动接管位置，渲染层不得覆写
     presenter_.SetLayoutSuspended(true);
 
+    // 半透明底板 + 边框：便于识别拖动区域，并让整块区域可接收鼠标
+    presenter_.SetEditAppearance(true);
+
+    // 位置变化时立即重绘，避免内容滞后于光标
+    dragEditor_.SetMovedCallback(&App::OnDragMovedThunk, this);
+
     overlay_.SetClickThrough(false);
     overlay_.SetFocusable(true);
+
+    // 应用编辑外观后需要重新计算窗口尺寸
+    presenter_.InvalidateGeometry();
+    RenderNow();
+
     UpdateTrayTooltip();
 }
 
@@ -301,11 +320,13 @@ void App::ExitEditMode(bool commit) {
     const bool moved = dragEditor_.HasMoved();
 
     dragEditor_.End(commit);
+    dragEditor_.SetMovedCallback(nullptr, nullptr);
 
     // 恢复点击穿透与不可获得焦点的行为
     overlay_.SetClickThrough(true);
     overlay_.SetFocusable(false);
     presenter_.SetLayoutSuspended(false);
+    presenter_.SetEditAppearance(false);
 
     if (commit && moved) {
         config_.anchor  = Anchor::Custom;

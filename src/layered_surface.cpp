@@ -57,6 +57,55 @@ void LayeredSurface::ApplyAlphaFromLuminance() const {
     }
 }
 
+void LayeredSurface::CompositeOverBackground(COLORREF background, BYTE backgroundAlpha) const {
+    if (!bits_ || width_ <= 0 || height_ <= 0) return;
+
+    const int bgA = backgroundAlpha;
+    const int bgR = GetRValue(background) * bgA / 255;
+    const int bgG = GetGValue(background) * bgA / 255;
+    const int bgB = GetBValue(background) * bgA / 255;
+
+    BYTE* p = static_cast<BYTE*>(bits_);
+    const int pixelCount = width_ * height_;
+    for (int i = 0; i < pixelCount; ++i, p += 4) {
+        // p 为预乘结果：src over bg
+        const int a = p[3];
+        const int inv = 255 - a;
+        p[0] = static_cast<BYTE>(p[0] + bgB * inv / 255);
+        p[1] = static_cast<BYTE>(p[1] + bgG * inv / 255);
+        p[2] = static_cast<BYTE>(p[2] + bgR * inv / 255);
+        p[3] = static_cast<BYTE>(a + bgA * inv / 255);
+    }
+}
+
+void LayeredSurface::DrawBorder(COLORREF color, BYTE alpha) const {
+    if (!bits_ || width_ <= 0 || height_ <= 0) return;
+
+    const BYTE b = static_cast<BYTE>(GetBValue(color) * alpha / 255);
+    const BYTE g = static_cast<BYTE>(GetGValue(color) * alpha / 255);
+    const BYTE r = static_cast<BYTE>(GetRValue(color) * alpha / 255);
+
+    BYTE* base = static_cast<BYTE*>(bits_);
+
+    const auto put = [&](int x, int y) {
+        if (x < 0 || y < 0 || x >= width_ || y >= height_) return;
+        BYTE* q = base + (static_cast<size_t>(y) * width_ + x) * 4;
+        q[0] = b;
+        q[1] = g;
+        q[2] = r;
+        q[3] = alpha;
+    };
+
+    for (int x = 0; x < width_; ++x) {
+        put(x, 0);
+        put(x, height_ - 1);
+    }
+    for (int y = 0; y < height_; ++y) {
+        put(0, y);
+        put(width_ - 1, y);
+    }
+}
+
 bool LayeredSurface::Present(HWND hwnd, int x, int y) const {
     if (!memDc_ || !bitmap_) return false;
 

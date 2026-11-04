@@ -60,6 +60,15 @@ void DragEditor::ClampToScreen(int& x, int& y) const {
     if (y > screenHeight - height_) y = screenHeight - height_;
 }
 
+void DragEditor::SetMovedCallback(MovedCallback cb, void* context) {
+    movedCb_ = cb;
+    movedCtx_ = context;
+}
+
+void DragEditor::NotifyMoved() {
+    if (movedCb_) movedCb_(movedCtx_);
+}
+
 void DragEditor::MoveTo(int x, int y) {
     ClampToScreen(x, y);
     currentX_ = x;
@@ -67,9 +76,14 @@ void DragEditor::MoveTo(int x, int y) {
 
     SetWindowPos(overlay_, HWND_TOPMOST, x, y, 0, 0,
                  SWP_NOSIZE | SWP_NOACTIVATE);
+
+    // 位置变化后立即重绘，否则内容要等下一个 250ms 定时器，
+    // 拖动时会看到旧内容停留在新位置上（闪烁/滞后）。
+    NotifyMoved();
 }
 
 bool DragEditor::OnMessage(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
+    (void)lParam;
     if (!active_) return false;
 
     switch (msg) {
@@ -77,11 +91,12 @@ bool DragEditor::OnMessage(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         dragging_ = true;
         SetCapture(hwnd);
 
-        // 用消息自带的光标坐标而非 GetCursorPos：后者在部分会话/跨 DPI 场景下不可靠
-        dragStartCursor_.x = GET_X_LPARAM(lParam);
-        dragStartCursor_.y = GET_Y_LPARAM(lParam);
+        // 必须用屏幕绝对坐标。lParam 是相对窗口客户区的坐标，
+        // 而窗口本身正在移动，坐标系随之漂移，会形成滞后与抖动。
+        POINT cursor = {};
+        GetCursorPos(&cursor);
+        dragStartCursor_ = cursor;
 
-        // 同时记录真实几何，拖拽期间用窗口原点累加相对位移
         RECT rect = {};
         GetWindowRect(overlay_, &rect);
         startX_ = rect.left;
@@ -93,8 +108,12 @@ bool DragEditor::OnMessage(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
     case WM_MOUSEMOVE: {
         if (!dragging_) return true;
-        const int dx = GET_X_LPARAM(lParam) - dragStartCursor_.x;
-        const int dy = GET_Y_LPARAM(lParam) - dragStartCursor_.y;
+
+        POINT cursor = {};
+        GetCursorPos(&cursor);
+        const int dx = cursor.x - dragStartCursor_.x;
+        const int dy = cursor.y - dragStartCursor_.y;
+
         MoveTo(startX_ + dx, startY_ + dy);
         moved_ = true;
         return true;

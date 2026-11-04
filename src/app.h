@@ -39,6 +39,7 @@ private:
     void ExitEditMode(bool commit);
     static bool OverlayMessageThunk(void* context, HWND hwnd, UINT msg,
                                     WPARAM wParam, LPARAM lParam);
+    static void OnDragMovedThunk(void* context);
     void ApplyConfigToPresenter();
     void RenderNow();
 

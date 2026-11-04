@@ -19,14 +19,30 @@ bool ClockPresenter::Render(HWND hwnd) {
     const SIZE textSize = painter_.Measure(screenDc, text.c_str());
     ReleaseDC(nullptr, screenDc);
 
-    const int width  = textSize.cx + painter_.PaddingX() * 2;
-    const int height = textSize.cy + painter_.PaddingY() * 2;
+    int width  = textSize.cx + painter_.PaddingX() * 2;
+    int height = textSize.cy + painter_.PaddingY() * 2;
+
+    // 编辑模式留出更大边距，便于抓住
+    const int editPad = editAppearance_ ? 10 : 0;
+    width  += editPad * 2;
+    height += editPad * 2;
 
     if (!surface_.EnsureSize(width, height)) return false;
+    lastWidth_  = width;
+    lastHeight_ = height;
 
     surface_.Clear();
-    painter_.Draw(surface_.Dc(), text.c_str(), painter_.PaddingX(), painter_.PaddingY());
+    painter_.Draw(surface_.Dc(), text.c_str(),
+                  painter_.PaddingX() + editPad,
+                  painter_.PaddingY() + editPad);
     surface_.ApplyAlphaFromLuminance();
+
+    if (editAppearance_) {
+        // 半透明底板：让整块区域都能接收鼠标（分层窗口按 alpha 做命中测试）
+        surface_.CompositeOverBackground(RGB(24, 28, 36), 170);
+        // 1px 边框，明确拖动区域
+        surface_.DrawBorder(RGB(120, 200, 255), 220);
+    }
 
     int x = 0;
     int y = 0;
