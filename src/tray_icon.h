@@ -22,6 +22,9 @@ public:
 
     void SetTooltip(const wchar_t* tooltip);
 
+    // 替换图标（DPI 变化后重新加载用）
+    bool ReplaceIcon(HICON icon);
+
     bool IsAdded() const { return added_; }
     HICON Icon() const { return icon_; }
 

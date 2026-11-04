@@ -26,6 +26,8 @@ private:
 
     bool CreateRouterWindow();
     bool CreateTrayIcon();
+    HICON LoadTraySizedIcon() const;
+    void ReloadTrayIcon();
     void UpdateTrayTooltip();
 
     void ShowTrayMenu();

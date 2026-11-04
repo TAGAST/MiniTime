@@ -40,15 +40,46 @@ bool App::CreateRouterWindow() {
 bool App::CreateTrayIcon() {
     trayCallback_ = RegisterWindowMessageW(L"MiniTimeTrayCallback");
 
-    appIcon_ = static_cast<HICON>(
-        LoadImageW(instance_, MAKEINTRESOURCEW(IDI_APP), IMAGE_ICON,
-                   0, 0, LR_DEFAULTSIZE | LR_SHARED));
-
+    appIcon_ = LoadTraySizedIcon();
     if (!appIcon_) {
         appIcon_ = LoadIconW(nullptr, IDI_APPLICATION);
     }
 
     return trayIcon_.Add(router_, trayCallback_, appIcon_, L"MiniTime");
+}
+
+HICON App::LoadTraySizedIcon() const {
+    // 托盘图标必须按 SM_CXSMICON 加载（通常 16px，150% DPI 下 24px）。
+    // 用 LR_DEFAULTSIZE 会按 SM_CXICON 取 48px，导致图标撑满任务栏而无法正常显示。
+    int cx = GetSystemMetrics(SM_CXSMICON);
+    int cy = GetSystemMetrics(SM_CYSMICON);
+    if (cx <= 0) cx = 16;
+    if (cy <= 0) cy = 16;
+
+    // 不共享句柄：DPI 变化时需要按新尺寸重新加载
+    HICON icon = static_cast<HICON>(
+        LoadImageW(instance_, MAKEINTRESOURCEW(IDI_APP), IMAGE_ICON,
+                   cx, cy, LR_DEFAULTCOLOR));
+    if (icon) return icon;
+
+    // 回退：直接加载图标资源
+    return static_cast<HICON>(
+        LoadImageW(instance_, MAKEINTRESOURCEW(IDI_APP), IMAGE_ICON,
+                   cx, cy, 0));
+}
+
+void App::ReloadTrayIcon() {
+    HICON fresh = LoadTraySizedIcon();
+    if (!fresh) return;
+
+    if (appIcon_ && appIcon_ != LoadIconW(nullptr, IDI_APPLICATION)) {
+        DestroyIcon(appIcon_);
+    }
+    appIcon_ = fresh;
+
+    if (!trayIcon_.ReplaceIcon(appIcon_)) {
+        trayIcon_.ReAdd();
+    }
 }
 
 void App::UpdateTrayTooltip() {
@@ -142,6 +173,12 @@ LRESULT App::Route(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         return 0;
 
     case WM_DISPLAYCHANGE:
+        RenderNow();
+        return 0;
+
+    case WM_DPICHANGED:
+        // DPI 变化后托盘图标需要按新尺寸重新加载
+        ReloadTrayIcon();
         RenderNow();
         return 0;
 

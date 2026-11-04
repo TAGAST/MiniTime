@@ -81,6 +81,24 @@ void TrayIcon::Remove() {
     added_ = false;
 }
 
+bool TrayIcon::ReplaceIcon(HICON icon) {
+    if (!icon) return false;
+
+    icon_     = icon;
+    ownsIcon_ = false;
+
+    if (!added_ || !owner_) return false;
+
+    NOTIFYICONDATAW data = {};
+    data.cbSize = sizeof(data);
+    data.hWnd   = owner_;
+    data.uID    = kIconId;
+    data.uFlags = NIF_ICON;
+    data.hIcon  = icon_;
+
+    return Shell_NotifyIconW(NIM_MODIFY, &data) != FALSE;
+}
+
 void TrayIcon::SetTooltip(const wchar_t* tooltip) {
     if (!tooltip) return;
     wcsncpy_s(tooltip_, 128, tooltip, _TRUNCATE);

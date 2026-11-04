@@ -32,8 +32,44 @@ bool ClockPresenter::Render(HWND hwnd) {
     int y = 0;
     ComputePosition(width, height, x, y);
 
+    // 关键：先同步窗口几何。若只用 UpdateLayeredWindow 改变尺寸，
+    // DWM 不会重绘旧区域，屏幕上会残留旧的文字像素。
+    SyncWindowGeometry(hwnd, x, y, width, height);
+
     surface_.Present(hwnd, x, y);
     return true;
+}
+
+void ClockPresenter::SyncWindowGeometry(HWND hwnd, int x, int y, int width, int height) {
+    RECT current = {};
+    if (!GetWindowRect(hwnd, &current)) return;
+
+    const bool unchanged = hasGeometry_
+        && current.left   == x
+        && current.top    == y
+        && (current.right - current.left) == width
+        && (current.bottom - current.top) == height;
+
+    if (unchanged) return;
+
+    // 分层窗口缩小后，DWM 不会擦除原先占据的屏幕区域，旧文字会残留在桌面上。
+    // 处理顺序：先把旧区域作废 -> 调整几何 -> 再用透明内容覆盖旧区域。
+
+    if (hasGeometry_) {
+        // 用空内容把旧窗口区域刷成完全透明，DWM 才会真正擦除那些像素
+        if (surface_.EnsureSize(current.right - current.left, current.bottom - current.top)) {
+            surface_.Clear();
+            surface_.ApplyAlphaFromLuminance();
+            surface_.Present(hwnd, current.left, current.top);
+        }
+    }
+
+    // SWP_NOACTIVATE：绝不抢游戏焦点
+    SetWindowPos(hwnd, HWND_TOPMOST, x, y, width, height,
+                 SWP_NOACTIVATE | SWP_NOOWNERZORDER);
+
+    lastGeometry_ = RECT{ x, y, x + width, y + height };
+    hasGeometry_  = true;
 }
 
 void ClockPresenter::ComputePosition(int width, int height, int& x, int& y) const {

@@ -26,6 +26,13 @@ public:
 private:
     void ComputePosition(int width, int height, int& x, int& y) const;
 
+    // 同步窗口几何：分层窗口仅靠 UpdateLayeredWindow 改变尺寸时，
+    // DWM 不会擦除旧区域，必须显式 SetWindowPos 通知几何变化。
+    void SyncWindowGeometry(HWND hwnd, int x, int y, int width, int height);
+
+    RECT lastGeometry_ = { 0, 0, 0, 0 };
+    bool hasGeometry_  = false;
+
     TimeFormat      format_  = {};
     TextStyle       style_   = {};
     LayoutConfig    layout_  = {};
