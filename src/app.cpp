@@ -172,6 +172,11 @@ LRESULT App::Route(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         OnToggleVisibility();
         return 0;
 
+    case WM_APP + 1:
+        // 第二个实例启动时请求：把叠加层重新显示出来
+        EnsureVisibleAndTopmost();
+        return 0;
+
     case WM_DISPLAYCHANGE:
         RenderNow();
         return 0;
@@ -247,6 +252,14 @@ void App::HandleMenuCommand(MenuCommand command) {
 
 void App::OnTick() {
     RenderNow();
+}
+
+void App::EnsureVisibleAndTopmost() {
+    overlay_.SetVisible(true);
+    overlay_.RaiseTopmost();
+    ApplyConfigToPresenter();
+    RenderNow();
+    UpdateTrayTooltip();
 }
 
 void App::OnToggleVisibility() {

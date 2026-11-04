@@ -36,6 +36,7 @@ private:
     void RenderNow();
 
     void OnTick();
+    void EnsureVisibleAndTopmost();
     void OnToggleVisibility();
     void Shutdown();
 
