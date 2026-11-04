@@ -21,6 +21,9 @@ CMakeUserPresets.json
 # 本地运行时配置（不入库）
 config.ini
 
+# 个人工作文件（与项目无关，不提交）
+开发要求.txt
+
 # 系统
 Thumbs.db
 desktop.ini
