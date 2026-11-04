@@ -38,6 +38,9 @@ private:
     // DWM 不会擦除旧区域，必须显式 SetWindowPos 通知几何变化。
     void SyncWindowGeometry(HWND hwnd, int x, int y, int width, int height);
 
+    // 用一次性表面把指定屏幕矩形擦成全透明（不触碰 surface_）
+    void EraseRegion(HWND hwnd, int x, int y, int width, int height);
+
     RECT lastGeometry_ = { 0, 0, 0, 0 };
     bool hasGeometry_  = false;
     bool suspendLayout_ = false;

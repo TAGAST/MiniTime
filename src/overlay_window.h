@@ -14,6 +14,9 @@ public:
 
     bool Create(HINSTANCE instance);
 
+    // 显式销毁窗口；退出流程必须调用，否则分层窗口会残留
+    void Destroy();
+
     HWND Handle() const { return hwnd_; }
     bool IsVisible() const { return visible_; }
 

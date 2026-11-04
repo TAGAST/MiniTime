@@ -53,6 +53,46 @@ bool ClockPresenter::Render(HWND hwnd) {
     return true;
 }
 
+void ClockPresenter::EraseRegion(HWND hwnd, int x, int y, int width, int height) {
+    if (width <= 0 || height <= 0) return;
+
+    HDC screenDc = GetDC(nullptr);
+    if (!screenDc) return;
+
+    BITMAPINFO info = {};
+    info.bmiHeader.biSize        = sizeof(BITMAPINFOHEADER);
+    info.bmiHeader.biWidth       = width;
+    info.bmiHeader.biHeight      = -height;
+    info.bmiHeader.biPlanes      = 1;
+    info.bmiHeader.biBitCount    = 32;
+    info.bmiHeader.biCompression = BI_RGB;
+
+    void* bits = nullptr;
+    HBITMAP bitmap = CreateDIBSection(nullptr, &info, DIB_RGB_COLORS, &bits, nullptr, 0);
+    if (!bitmap || !bits) {
+        ReleaseDC(nullptr, screenDc);
+        return;
+    }
+
+    HDC memDc = CreateCompatibleDC(nullptr);
+    if (memDc) {
+        HGDIOBJ old = SelectObject(memDc, bitmap);
+        ZeroMemory(bits, static_cast<size_t>(width) * static_cast<size_t>(height) * 4);
+
+        POINT dest = { x, y };
+        POINT src  = { 0, 0 };
+        SIZE  size = { width, height };
+        BLENDFUNCTION blend = { AC_SRC_OVER, 0, 0, AC_SRC_ALPHA };
+        UpdateLayeredWindow(hwnd, screenDc, &dest, &size, memDc, &src, 0, &blend, ULW_ALPHA);
+
+        SelectObject(memDc, old);
+        DeleteDC(memDc);
+    }
+
+    DeleteObject(bitmap);
+    ReleaseDC(nullptr, screenDc);
+}
+
 void ClockPresenter::InvalidateGeometry() {
     hasGeometry_ = false;
 }
@@ -73,15 +113,12 @@ void ClockPresenter::SyncWindowGeometry(HWND hwnd, int x, int y, int width, int 
     if (unchanged) return;
 
     // 分层窗口缩小后，DWM 不会擦除原先占据的屏幕区域，旧文字会残留在桌面上。
-    // 处理顺序：先把旧区域作废 -> 调整几何 -> 再用透明内容覆盖旧区域。
+    // 注意：这里不能复用 surface_ —— 调用方刚在其中绘制好新内容，
+    // 改动它的尺寸或清空会把这一帧毁掉。改用一次性的临时表面擦除旧区域。
 
     if (hasGeometry_) {
-        // 用空内容把旧窗口区域刷成完全透明，DWM 才会真正擦除那些像素
-        if (surface_.EnsureSize(current.right - current.left, current.bottom - current.top)) {
-            surface_.Clear();
-            surface_.ApplyAlphaFromLuminance();
-            surface_.Present(hwnd, current.left, current.top);
-        }
+        EraseRegion(hwnd, current.left, current.top,
+                    current.right - current.left, current.bottom - current.top);
     }
 
     // SWP_NOACTIVATE：绝不抢游戏焦点

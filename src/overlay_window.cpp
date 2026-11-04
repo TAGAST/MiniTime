@@ -8,8 +8,48 @@ constexpr const wchar_t* kClassName = L"MiniTimeOverlay";
 
 const wchar_t* OverlayWindow::ClassName() { return kClassName; }
 
-OverlayWindow::~OverlayWindow() {
-    if (hwnd_) DestroyWindow(hwnd_);
+OverlayWindow::~OverlayWindow() { Destroy(); }
+
+void OverlayWindow::Destroy() {
+    if (!hwnd_) return;
+
+    // 分层窗口的像素由 DWM 持有。仅隐藏/销毁窗口时，
+    // DWM 可能保留最后一次合成的结果，导致退出后屏幕残留文字。
+    // 因此先把内容刷成全透明，再隐藏并销毁。
+    const int width  = 1;
+    const int height = 1;
+    HDC screenDc = GetDC(nullptr);
+    if (screenDc) {
+        BITMAPINFO info = {};
+        info.bmiHeader.biSize        = sizeof(BITMAPINFOHEADER);
+        info.bmiHeader.biWidth       = width;
+        info.bmiHeader.biHeight      = -height;
+        info.bmiHeader.biPlanes      = 1;
+        info.bmiHeader.biBitCount    = 32;
+        info.bmiHeader.biCompression = BI_RGB;
+
+        void* bits = nullptr;
+        HBITMAP bmp = CreateDIBSection(nullptr, &info, DIB_RGB_COLORS, &bits, nullptr, 0);
+        if (bmp && bits) {
+            HDC memDc = CreateCompatibleDC(nullptr);
+            if (memDc) {
+                SelectObject(memDc, bmp);
+                ZeroMemory(bits, static_cast<size_t>(width) * height * 4);
+
+                POINT dest = { 0, 0 };
+                SIZE  size = { width, height };
+                BLENDFUNCTION blend = { AC_SRC_OVER, 0, 0, AC_SRC_ALPHA };
+                UpdateLayeredWindow(hwnd_, screenDc, &dest, &size, memDc, &dest, 0, &blend, ULW_ALPHA);
+                DeleteDC(memDc);
+            }
+            DeleteObject(bmp);
+        }
+        ReleaseDC(nullptr, screenDc);
+    }
+
+    ShowWindow(hwnd_, SW_HIDE);
+    DestroyWindow(hwnd_);
+    hwnd_ = nullptr;
 }
 
 LRESULT CALLBACK OverlayWindow::WndProcThunk(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {

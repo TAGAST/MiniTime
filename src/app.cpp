@@ -352,6 +352,10 @@ void App::Shutdown() {
     hotkeys_.UnregisterAll();
     trayIcon_.Remove();
 
+    // 必须先销毁叠加层：分层窗口的像素由 DWM 持有，
+    // 若进程退出时窗口仍在，桌面会残留最后一次绘制的内容。
+    overlay_.Destroy();
+
     if (router_) {
         DestroyWindow(router_);
         router_ = nullptr;
