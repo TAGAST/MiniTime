@@ -39,9 +39,12 @@ enum class MenuCommand : int {
     AnchorBottomLeft   = 1407,
     AnchorBottomCenter = 1408,
     AnchorBottomRight  = 1409,
+
+    // 编辑模式
+    EnterEditMode = 1501,
 };
 
-// 九宫格锚点
+// 九宫格锚点；Custom 表示由自由拖动产生的绝对坐标
 enum class Anchor {
     TopLeft,
     TopCenter,
@@ -52,4 +55,5 @@ enum class Anchor {
     BottomLeft,
     BottomCenter,
     BottomRight,
+    Custom,
 };

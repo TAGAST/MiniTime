@@ -36,11 +36,31 @@ bool ClockPresenter::Render(HWND hwnd) {
     // DWM 不会重绘旧区域，屏幕上会残留旧的文字像素。
     SyncWindowGeometry(hwnd, x, y, width, height);
 
-    surface_.Present(hwnd, x, y);
+    // 编辑模式期间窗口位置由拖动逻辑接管：
+    // UpdateLayeredWindow 会把窗口移动到传入的坐标，因此必须使用真实位置，
+    // 否则每一帧都会把窗口拉回配置里记录的旧坐标。
+    int presentX = x;
+    int presentY = y;
+    if (suspendLayout_) {
+        RECT actual = {};
+        if (GetWindowRect(hwnd, &actual)) {
+            presentX = actual.left;
+            presentY = actual.top;
+        }
+    }
+
+    surface_.Present(hwnd, presentX, presentY);
     return true;
 }
 
+void ClockPresenter::InvalidateGeometry() {
+    hasGeometry_ = false;
+}
+
 void ClockPresenter::SyncWindowGeometry(HWND hwnd, int x, int y, int width, int height) {
+    // 编辑模式期间由 DragEditor 接管窗口位置，渲染层不得覆写
+    if (suspendLayout_) return;
+
     RECT current = {};
     if (!GetWindowRect(hwnd, &current)) return;
 
@@ -75,6 +95,17 @@ void ClockPresenter::SyncWindowGeometry(HWND hwnd, int x, int y, int width, int 
 void ClockPresenter::ComputePosition(int width, int height, int& x, int& y) const {
     const int screenWidth  = GetSystemMetrics(SM_CXSCREEN);
     const int screenHeight = GetSystemMetrics(SM_CYSCREEN);
+
+    // 自由拖动产生的绝对坐标
+    if (layout_.anchor == Anchor::Custom) {
+        x = layout_.customX;
+        y = layout_.customY;
+        if (x < 0) x = 0;
+        if (y < 0) y = 0;
+        if (x > screenWidth - width)   x = screenWidth - width;
+        if (y > screenHeight - height) y = screenHeight - height;
+        return;
+    }
 
     // 水平方向
     switch (layout_.anchor) {

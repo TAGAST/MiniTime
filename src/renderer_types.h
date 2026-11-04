@@ -14,9 +14,13 @@ struct TextStyle {
     int            paddingY = 8;
 };
 
-// 叠加层锚点布局（九宫格）
+// 叠加层布局：九宫格锚点 + 偏移；anchor == Custom 时使用绝对坐标
 struct LayoutConfig {
     Anchor anchor  = Anchor::TopRight;
     int    marginX = 24;
     int    marginY = 20;
+
+    // 仅当 anchor == Custom 时有效
+    int    customX = 0;
+    int    customY = 0;
 };

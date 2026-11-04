@@ -18,6 +18,10 @@ struct AppConfig {
     int    marginX = 24;
     int    marginY = 20;
 
+    // 自由拖动产生的绝对坐标（anchor == Custom 时生效）
+    int    customX = 0;
+    int    customY = 0;
+
     // 转换为渲染参数（应用整体缩放）
     TextStyle    ToTextStyle() const;
     LayoutConfig ToLayoutConfig() const;

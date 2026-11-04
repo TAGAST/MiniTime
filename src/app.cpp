@@ -8,6 +8,8 @@ namespace {
 constexpr UINT_PTR kRefreshTimerId = 1;
 constexpr int      kHotkeyMods     = MOD_CONTROL | MOD_ALT;
 constexpr UINT     kHotkeyVirtual  = 'T';
+constexpr int      kHotkeyEditId   = 2;
+constexpr UINT     kHotkeyEditKey  = 'E';
 constexpr const wchar_t* kRouterClass = L"MiniTimeRouter";
 
 void ReportHotkeyFailure() {
@@ -118,9 +120,14 @@ int App::Run(HINSTANCE instance, int showCommand) {
         ReportHotkeyFailure();
     }
 
+    // 编辑模式热键（可选功能，失败不影响主功能）
+    RegisterHotKey(router_, kHotkeyEditId, kHotkeyMods | MOD_NOREPEAT, kHotkeyEditKey);
+
     CreateTrayIcon();
     UpdateTrayTooltip();
     autostart::SyncPathIfEnabled();
+
+    overlay_.SetMessageHook(&App::OverlayMessageThunk, this);
 
     MSG msg = {};
     while (GetMessageW(&msg, nullptr, 0, 0) > 0) {
@@ -169,7 +176,11 @@ LRESULT App::Route(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         break;
 
     case WM_HOTKEY:
-        OnToggleVisibility();
+        if (wParam == kHotkeyEditId) {
+            EnterEditMode();
+        } else {
+            OnToggleVisibility();
+        }
         return 0;
 
     case WM_APP + 1:
@@ -238,6 +249,10 @@ void App::HandleMenuCommand(MenuCommand command) {
         DestroyWindow(router_);
         return;
 
+    case MenuCommand::EnterEditMode:
+        EnterEditMode();
+        return;
+
     default:
         break;
     }
@@ -248,6 +263,62 @@ void App::HandleMenuCommand(MenuCommand command) {
         RenderNow();
         config::Save(config_);
     }
+}
+
+bool App::OverlayMessageThunk(void* context, HWND hwnd, UINT msg,
+                              WPARAM wParam, LPARAM lParam) {
+    auto* self = static_cast<App*>(context);
+    if (!self) return false;
+    return self->dragEditor_.OnMessage(hwnd, msg, wParam, lParam);
+}
+
+void App::EnterEditMode() {
+    if (dragEditor_.IsActive()) {
+        ExitEditMode(true);
+        return;
+    }
+
+    // 1 分钟无操作自动退出，避免忘记退出后游戏无法操作
+    constexpr int kEditTimeoutMs = 60 * 1000;
+    if (!dragEditor_.Begin(overlay_.Handle(), router_, kEditTimeoutMs)) {
+        return;
+    }
+
+    // 编辑期间由拖动接管位置，渲染层不得覆写
+    presenter_.SetLayoutSuspended(true);
+
+    overlay_.SetClickThrough(false);
+    overlay_.SetFocusable(true);
+    UpdateTrayTooltip();
+}
+
+void App::ExitEditMode(bool commit) {
+    if (!dragEditor_.IsActive()) return;
+
+    // 以窗口实际位置为准，避免内部记录与真实几何不一致
+    const RECT actual = overlay_.Bounds();
+    const POINT pos = { actual.left, actual.top };
+    const bool moved = dragEditor_.HasMoved();
+
+    dragEditor_.End(commit);
+
+    // 恢复点击穿透与不可获得焦点的行为
+    overlay_.SetClickThrough(true);
+    overlay_.SetFocusable(false);
+    presenter_.SetLayoutSuspended(false);
+
+    if (commit && moved) {
+        config_.anchor  = Anchor::Custom;
+        config_.customX = pos.x;
+        config_.customY = pos.y;
+        config::Save(config_);
+    }
+
+    // 位置变化后需让渲染层重新同步窗口几何
+    presenter_.InvalidateGeometry();
+    ApplyConfigToPresenter();
+    RenderNow();
+    UpdateTrayTooltip();
 }
 
 void App::OnTick() {

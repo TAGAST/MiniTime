@@ -26,6 +26,7 @@ set(MINITIME_SOURCES
     src/tray_menu.cpp
     src/autostart.cpp
     src/config.cpp
+    src/drag_editor.cpp
     res/resource.rc
 )
 

@@ -23,6 +23,14 @@ public:
     // 计算并提交一帧；返回 false 表示失败
     bool Render(HWND hwnd);
 
+    // 使缓存的窗口几何失效，强制下次 Render 重新定位
+    void InvalidateGeometry();
+
+    // 暂停/恢复自动定位：编辑模式期间由拖动逻辑接管窗口位置
+    void SetLayoutSuspended(bool suspended) { suspendLayout_ = suspended; }
+
+    LayoutConfig& MutableLayout() { return layout_; }
+
 private:
     void ComputePosition(int width, int height, int& x, int& y) const;
 
@@ -32,6 +40,7 @@ private:
 
     RECT lastGeometry_ = { 0, 0, 0, 0 };
     bool hasGeometry_  = false;
+    bool suspendLayout_ = false;
 
     TimeFormat      format_  = {};
     TextStyle       style_   = {};

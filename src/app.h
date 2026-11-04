@@ -2,6 +2,7 @@
 
 #include "clock_presenter.h"
 #include "config.h"
+#include "drag_editor.h"
 #include "hotkey.h"
 #include "menu_commands.h"
 #include "overlay_window.h"
@@ -32,6 +33,12 @@ private:
 
     void ShowTrayMenu();
     void HandleMenuCommand(MenuCommand command);
+
+    // 编辑模式
+    void EnterEditMode();
+    void ExitEditMode(bool commit);
+    static bool OverlayMessageThunk(void* context, HWND hwnd, UINT msg,
+                                    WPARAM wParam, LPARAM lParam);
     void ApplyConfigToPresenter();
     void RenderNow();
 
@@ -47,6 +54,7 @@ private:
     HotkeyRegistry hotkeys_       = {};
     TrayIcon       trayIcon_      = {};
     TrayMenu       trayMenu_      = {};
+    DragEditor     dragEditor_    = {};
     HICON          appIcon_       = nullptr;
     UINT           trayCallback_  = 0;
     TimeFormat     format_        = {};

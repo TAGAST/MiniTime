@@ -81,6 +81,10 @@ MenuCommand TrayMenu::Show(HWND owner, POINT screenPos, const TrayMenuState& sta
         AppendChecked(positionMenu, static_cast<UINT>(item.cmd), item.label,
                       state.config.anchor == item.value);
     }
+    AppendMenuW(positionMenu, MF_SEPARATOR, 0, nullptr);
+    AppendMenuW(positionMenu, MF_STRING,
+                static_cast<UINT>(MenuCommand::EnterEditMode), L"调整位置…");
+
     AppendMenuW(menu, MF_POPUP, reinterpret_cast<UINT_PTR>(positionMenu), L"位置");
 
     AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);

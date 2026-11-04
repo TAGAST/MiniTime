@@ -16,12 +16,14 @@ constexpr const wchar_t* kAnchorNames[] = {
     L"top-left",      L"top-center",    L"top-right",
     L"middle-left",   L"center",        L"middle-right",
     L"bottom-left",   L"bottom-center", L"bottom-right",
+    L"custom",
 };
 
 constexpr Anchor kAnchors[] = {
     Anchor::TopLeft,      Anchor::TopCenter,    Anchor::TopRight,
     Anchor::MiddleLeft,   Anchor::Center,       Anchor::MiddleRight,
     Anchor::BottomLeft,   Anchor::BottomCenter, Anchor::BottomRight,
+    Anchor::Custom,
 };
 
 std::wstring ExeDirectory() {
@@ -55,14 +57,14 @@ int ScaleBy(int base, int percent) {
 }
 
 std::wstring AnchorToName(Anchor anchor) {
-    for (int i = 0; i < 9; ++i) {
+    for (int i = 0; i < 10; ++i) {
         if (kAnchors[i] == anchor) return kAnchorNames[i];
     }
     return L"top-right";
 }
 
 Anchor NameToAnchor(const std::wstring& name) {
-    for (int i = 0; i < 9; ++i) {
+    for (int i = 0; i < 10; ++i) {
         if (name == kAnchorNames[i]) return kAnchors[i];
     }
     return Anchor::TopRight;
@@ -85,6 +87,8 @@ LayoutConfig AppConfig::ToLayoutConfig() const {
     layout.anchor  = anchor;
     layout.marginX = marginX;
     layout.marginY = marginY;
+    layout.customX = customX;
+    layout.customY = customY;
     return layout;
 }
 
@@ -135,6 +139,12 @@ AppConfig Load() {
     cfg.marginY = _wtoi(buffer);
     if (cfg.marginY < -10000 || cfg.marginY > 10000) cfg.marginY = 20;
 
+    GetPrivateProfileStringW(kSectionPosition, L"custom_x", L"0", buffer, 128, path.c_str());
+    cfg.customX = _wtoi(buffer);
+
+    GetPrivateProfileStringW(kSectionPosition, L"custom_y", L"0", buffer, 128, path.c_str());
+    cfg.customY = _wtoi(buffer);
+
     return cfg;
 }
 
@@ -160,6 +170,12 @@ bool Save(const AppConfig& cfg) {
 
     swprintf(buffer, 64, L"%d", cfg.marginY);
     WritePrivateProfileStringW(kSectionPosition, L"margin_y", buffer, path.c_str());
+
+    swprintf(buffer, 64, L"%d", cfg.customX);
+    WritePrivateProfileStringW(kSectionPosition, L"custom_x", buffer, path.c_str());
+
+    swprintf(buffer, 64, L"%d", cfg.customY);
+    WritePrivateProfileStringW(kSectionPosition, L"custom_y", buffer, path.c_str());
 
     return true;
 }
