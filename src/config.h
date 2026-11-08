@@ -1,9 +1,12 @@
 #pragma once
 
+#include "game_profile.h"
 #include "hotkey_key.h"
 #include "menu_commands.h"
 #include "renderer_types.h"
 #include "timefmt.h"
+
+#include <vector>
 
 #include <windows.h>
 #include <string>
@@ -50,6 +53,13 @@ bool Save(const AppConfig& config);
 
 // 把菜单命令应用到配置；返回 true 表示配置已被修改
 bool ApplyCommand(AppConfig& config, MenuCommand command);
+
+// 游戏位置配置
+std::vector<GameProfile> LoadProfiles();
+bool SaveProfiles(const std::vector<GameProfile>& profiles);
+
+// 配置变更计数：每次 Save 递增，用于判断菜单状态是否需要刷新
+unsigned ProfileVersion();
 
 // 颜色与字符串互转（供配置文件使用）
 std::wstring ColorToHex(COLORREF color);

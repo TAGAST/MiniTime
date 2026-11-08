@@ -9,6 +9,12 @@ constexpr const wchar_t* kSectionPosition = L"position";
 constexpr const wchar_t* kSectionHotkey   = L"hotkey";
 constexpr const wchar_t* kSectionFormat   = L"format";
 
+// 游戏配置段前缀，例如 [profile:GenshinImpact.exe]
+constexpr const wchar_t* kProfilePrefix   = L"profile:";
+constexpr size_t         kProfilePrefixLen = 8;   // L"profile:" 的长度
+
+unsigned g_profileVersion = 0;
+
 // 基准样式：缩放以此为准
 constexpr int kBaseFontSize = 28;
 constexpr int kBasePaddingX = 16;
@@ -307,6 +313,115 @@ bool ApplyCommand(AppConfig& cfg, MenuCommand command) {
     default:
         return false;
     }
+}
+
+std::vector<GameProfile> LoadProfiles() {
+    std::vector<GameProfile> result;
+
+    const std::wstring path = FilePath();
+    if (path.empty()) return result;
+
+    // 枚举所有段名，挑出 profile: 前缀的
+    wchar_t sections[8192] = {};
+    const DWORD written = GetPrivateProfileSectionNamesW(sections, 8192, path.c_str());
+    if (written == 0) return result;
+
+    for (const wchar_t* p = sections; *p; p += lstrlenW(p) + 1) {
+        const std::wstring section(p);
+        if (section.size() <= kProfilePrefixLen) continue;
+        if (section.compare(0, kProfilePrefixLen, kProfilePrefix) != 0) continue;
+
+        GameProfile profile;
+        profile.processName = section.substr(kProfilePrefixLen);
+        profile.displayName = gameprofile::ToDisplayName(profile.processName);
+
+        wchar_t buffer[256] = {};
+
+        // 默认值必须用独立缓冲：直接传 displayName.c_str() 会让 API
+        // 向同一块内存写入，取到空值。
+        const std::wstring fallbackName = profile.displayName;
+        GetPrivateProfileStringW(section.c_str(), L"name", fallbackName.c_str(),
+                                 buffer, 256, path.c_str());
+        if (buffer[0] != L'\0') {
+            profile.displayName = buffer;
+        }
+
+        GetPrivateProfileStringW(section.c_str(), L"anchor", L"custom", buffer, 256, path.c_str());
+        profile.anchor = NameToAnchor(buffer);
+
+        GetPrivateProfileStringW(section.c_str(), L"custom_x", L"0", buffer, 256, path.c_str());
+        profile.customX = _wtoi(buffer);
+
+        GetPrivateProfileStringW(section.c_str(), L"custom_y", L"0", buffer, 256, path.c_str());
+        profile.customY = _wtoi(buffer);
+
+        GetPrivateProfileStringW(section.c_str(), L"margin_x", L"24", buffer, 256, path.c_str());
+        profile.marginX = _wtoi(buffer);
+
+        GetPrivateProfileStringW(section.c_str(), L"margin_y", L"20", buffer, 256, path.c_str());
+        profile.marginY = _wtoi(buffer);
+
+        if (!profile.processName.empty()) {
+            result.push_back(profile);
+        }
+    }
+
+    return result;
+}
+
+bool SaveProfiles(const std::vector<GameProfile>& profiles) {
+    const std::wstring path = FilePath();
+    if (path.empty()) return false;
+
+    ++g_profileVersion;
+
+    // 先删除旧的 profile 段，避免已删除的游戏残留
+    wchar_t sections[8192] = {};
+    const DWORD written = GetPrivateProfileSectionNamesW(sections, 8192, path.c_str());
+    if (written > 0) {
+        std::vector<std::wstring> toRemove;
+        for (const wchar_t* p = sections; *p; p += lstrlenW(p) + 1) {
+            const std::wstring section(p);
+            if (section.size() > kProfilePrefixLen &&
+                section.compare(0, kProfilePrefixLen, kProfilePrefix) == 0) {
+                toRemove.push_back(section);
+            }
+        }
+        for (const auto& section : toRemove) {
+            WritePrivateProfileStringW(section.c_str(), nullptr, nullptr, path.c_str());
+        }
+    }
+
+    for (const auto& profile : profiles) {
+        if (profile.processName.empty()) continue;
+
+        const std::wstring section = std::wstring(kProfilePrefix) + profile.processName;
+
+        WritePrivateProfileStringW(section.c_str(), L"name",
+                                   profile.displayName.c_str(), path.c_str());
+
+        WritePrivateProfileStringW(section.c_str(), L"anchor",
+                                   AnchorToName(profile.anchor).c_str(), path.c_str());
+
+        wchar_t buffer[64] = {};
+        swprintf(buffer, 64, L"%d", profile.customX);
+        WritePrivateProfileStringW(section.c_str(), L"custom_x", buffer, path.c_str());
+
+        swprintf(buffer, 64, L"%d", profile.customY);
+        WritePrivateProfileStringW(section.c_str(), L"custom_y", buffer, path.c_str());
+
+        swprintf(buffer, 64, L"%d", profile.marginX);
+        WritePrivateProfileStringW(section.c_str(), L"margin_x", buffer, path.c_str());
+
+        swprintf(buffer, 64, L"%d", profile.marginY);
+        WritePrivateProfileStringW(section.c_str(), L"margin_y", buffer, path.c_str());
+    }
+
+    return true;
+}
+
+unsigned ProfileVersion() {
+    return g_profileVersion;
 }
 
 std::wstring ColorToHex(COLORREF color) {

@@ -3,6 +3,8 @@
 #include "autostart.h"
 #include "resource.h"
 
+#include <algorithm>
+
 namespace {
 
 constexpr UINT_PTR kRefreshTimerId = 1;
@@ -11,7 +13,12 @@ constexpr const wchar_t* kRouterClass = L"MiniTimeRouter";
 
 } // namespace
 
-App::~App() { Shutdown(); }
+App* App::s_instance = nullptr;
+
+App::~App() {
+    if (s_instance == this) s_instance = nullptr;
+    Shutdown();
+}
 
 bool App::CreateRouterWindow() {
     WNDCLASSEXW wc = {};
@@ -108,9 +115,11 @@ void App::RenderNow() {
 
 int App::Run(HINSTANCE instance, int showCommand) {
     instance_ = instance;
+    s_instance = this;
     (void)showCommand;
 
     config_ = config::Load();
+    LoadGameProfiles();
 
     if (!overlay_.Create(instance)) return 1;
     if (!CreateRouterWindow()) return 1;
@@ -129,6 +138,16 @@ int App::Run(HINSTANCE instance, int showCommand) {
     autostart::SyncPathIfEnabled();
 
     overlay_.SetMessageHook(&App::OverlayMessageThunk, this);
+
+    // 监听前台变化，用于按游戏自动切换位置
+    foregroundHook_ = SetWinEventHook(
+        EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_FOREGROUND,
+        nullptr, &App::WinEventThunk, 0, 0,
+        WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS);
+
+    // 启动时前台可能已经是目标游戏，主动检测一次，
+    // 否则要等到下一次切换才会套用配置。
+    OnForegroundChanged();
 
     MSG msg = {};
     while (GetMessageW(&msg, nullptr, 0, 0) > 0) {
@@ -233,6 +252,9 @@ void App::ShowTrayMenu() {
     state.config    = config_;
     state.toggleConflicted = hotkeys_.IsConflicted(HotkeyId::Toggle);
     state.editConflicted   = hotkeys_.IsConflicted(HotkeyId::Edit);
+    state.profiles         = profiles_;
+    state.foreground       = gameprofile::QueryForeground();
+    state.activeProfileProcess = activeProfile_;
 
     const MenuCommand command = trayMenu_.Show(router_, pt, state);
     HandleMenuCommand(command);
@@ -260,8 +282,28 @@ void App::HandleMenuCommand(MenuCommand command) {
         EnterEditMode();
         return;
 
+    case MenuCommand::SaveGamePosition:
+        SaveCurrentPositionToGame();
+        return;
+
+    case MenuCommand::DeleteGamePosition:
+        DeleteCurrentGameProfile();
+        return;
+
     default:
         break;
+    }
+
+    // 已保存游戏的条目
+    {
+        const int value = static_cast<int>(command);
+        if (value >= static_cast<int>(MenuCommand::ProfileBase) &&
+            value <= static_cast<int>(MenuCommand::ProfileBaseEnd)) {
+            const size_t index = static_cast<size_t>(
+                value - static_cast<int>(MenuCommand::ProfileBase));
+            SelectProfile(index);
+            return;
+        }
     }
 
     // 样式与位置类命令：修改配置 -> 立即生效 -> 持久化
@@ -444,6 +486,134 @@ void App::RegisterHotkeysFromConfig() {
     hotkeys_.Register(HotkeyId::Edit, config_.hotkeyEdit);
 }
 
+void App::LoadGameProfiles() {
+    profiles_ = config::LoadProfiles();
+}
+
+void App::ApplyActiveLayout() {
+    // 有生效的游戏配置就用它，否则用全局配置
+    if (!activeProfile_.empty()) {
+        for (const auto& profile : profiles_) {
+            if (gameprofile::SameProcess(profile.processName, activeProfile_)) {
+                LayoutConfig layout = config_.ToLayoutConfig();
+                layout.anchor  = profile.anchor;
+                layout.customX = profile.customX;
+                layout.customY = profile.customY;
+                layout.marginX = profile.marginX;
+                layout.marginY = profile.marginY;
+
+                presenter_.SetLayout(layout);
+                presenter_.InvalidateGeometry();
+                RenderNow();
+                return;
+            }
+        }
+    }
+
+    ApplyConfigToPresenter();
+    presenter_.InvalidateGeometry();
+    RenderNow();
+}
+
+void App::ApplyProfileFor(const std::wstring& processName) {
+    // 查找匹配的游戏配置
+    std::wstring matched;
+    for (const auto& profile : profiles_) {
+        if (gameprofile::SameProcess(profile.processName, processName)) {
+            matched = profile.processName;
+            break;
+        }
+    }
+
+    if (matched == activeProfile_) return;   // 无变化
+
+    activeProfile_ = matched;
+    ApplyActiveLayout();
+}
+
+void App::OnForegroundChanged() {
+    const ForegroundInfo info = gameprofile::QueryForeground();
+
+    if (!info.valid) return;
+
+    // 自己的窗口不算
+    if (gameprofile::SameProcess(info.processName, L"MiniTime.exe")) return;
+
+    ApplyProfileFor(info.processName);
+}
+
+void App::WinEventThunk(HWINEVENTHOOK, DWORD event, HWND, LONG, LONG, DWORD, DWORD) {
+    if (event != EVENT_SYSTEM_FOREGROUND) return;
+
+    // 回调运行在外部事件上下文，通过全局单例转发
+    if (App::s_instance) App::s_instance->OnForegroundChanged();
+}
+
+void App::SaveCurrentPositionToGame() {
+    const ForegroundInfo info = gameprofile::QueryForeground();
+    if (!info.valid) return;
+
+    // 记录当前叠加层左上角。此时不在编辑模式，窗口尺寸即常态尺寸，
+    // 该坐标可直接作为 customX/customY 使用。
+    const RECT actual = overlay_.Bounds();
+    const int x = actual.left;
+    const int y = actual.top;
+
+    // 已存在则更新
+    for (auto& profile : profiles_) {
+        if (gameprofile::SameProcess(profile.processName, info.processName)) {
+            profile.anchor  = Anchor::Custom;
+            profile.customX = x;
+            profile.customY = y;
+            config::SaveProfiles(profiles_);
+            LoadGameProfiles();
+            return;
+        }
+    }
+
+    GameProfile profile;
+    profile.processName = gameprofile::NormalizeProcessName(info.processName);
+    profile.displayName = gameprofile::ToDisplayName(profile.processName);
+    profile.anchor  = Anchor::Custom;
+    profile.customX = x;
+    profile.customY = y;
+    profiles_.push_back(profile);
+
+    config::SaveProfiles(profiles_);
+    LoadGameProfiles();
+}
+
+void App::DeleteCurrentGameProfile() {
+    const ForegroundInfo info = gameprofile::QueryForeground();
+    if (!info.valid) return;
+
+    const auto before = profiles_.size();
+    profiles_.erase(
+        std::remove_if(profiles_.begin(), profiles_.end(),
+                       [&](const GameProfile& p) {
+                           return gameprofile::SameProcess(p.processName, info.processName);
+                       }),
+        profiles_.end());
+
+    if (profiles_.size() != before) {
+        config::SaveProfiles(profiles_);
+        LoadGameProfiles();
+
+        if (gameprofile::SameProcess(activeProfile_, info.processName)) {
+            activeProfile_.clear();
+            ApplyActiveLayout();
+        }
+    }
+}
+
+void App::SelectProfile(size_t index) {
+    if (index >= profiles_.size()) return;
+
+    // 立即套用并记录为生效配置
+    activeProfile_ = profiles_[index].processName;
+    ApplyActiveLayout();
+}
+
 void App::OnTick() {
     RenderNow();
 }
@@ -474,6 +644,11 @@ void App::Shutdown() {
     }
     hotkeys_.UnregisterAll();
     trayIcon_.Remove();
+
+    if (foregroundHook_) {
+        UnhookWinEvent(foregroundHook_);
+        foregroundHook_ = nullptr;
+    }
 
     // 必须先销毁叠加层：分层窗口的像素由 DWM 持有，
     // 若进程退出时窗口仍在，桌面会残留最后一次绘制的内容。

@@ -64,6 +64,13 @@ enum class MenuCommand : int {
     Hour12          = 3002,
     ToggleSeconds   = 3003,
     ToggleDate      = 3004,
+
+    // 游戏位置配置
+    SaveGamePosition   = 4001,   // 把当前位置记录到当前前台游戏
+    DeleteGamePosition = 4002,   // 删除当前前台游戏的配置
+    // 4003..4103 预留给「选择某个已保存的游戏」
+    ProfileBase        = 4003,
+    ProfileBaseEnd     = 4103,
 };
 
 // 九宫格锚点；Custom 表示由自由拖动产生的绝对坐标

@@ -3,6 +3,7 @@
 #include "clock_presenter.h"
 #include "config.h"
 #include "drag_editor.h"
+#include "game_profile.h"
 #include "hotkey.h"
 #include "menu_commands.h"
 #include "overlay_window.h"
@@ -33,6 +34,20 @@ private:
 
     void ShowTrayMenu();
     void RegisterHotkeysFromConfig();
+
+    // 游戏位置配置
+    void LoadGameProfiles();
+    void OnForegroundChanged();
+    void ApplyProfileFor(const std::wstring& processName);
+    void SaveCurrentPositionToGame();
+    void DeleteCurrentGameProfile();
+    void SelectProfile(size_t index);
+    void ApplyActiveLayout();
+    static void WinEventThunk(HWINEVENTHOOK hook, DWORD event, HWND hwnd,
+                              LONG idObject, LONG idChild, DWORD thread, DWORD time);
+
+    // 前台钩子是自由函数回调，需要一个可访问的实例指针
+    static App* s_instance;
     void SyncRefreshTimer();
     static bool IsHotkeyCommand(MenuCommand command);
     static bool IsFormatCommand(MenuCommand command);
@@ -67,6 +82,9 @@ private:
     UINT           trayCallback_  = 0;
     TimeFormat     format_        = {};
     AppConfig      config_        = {};
+    std::vector<GameProfile> profiles_;
+    std::wstring   activeProfile_ = {};   // 当前生效配置的进程名（空=用全局配置）
+    HWINEVENTHOOK  foregroundHook_ = nullptr;
     UINT           timerMs_       = 0;
     bool           shuttingDown_  = false;
 };

@@ -28,6 +28,7 @@ set(MINITIME_SOURCES
     src/autostart.cpp
     src/config.cpp
     src/drag_editor.cpp
+    src/game_profile.cpp
     res/resource.rc
 )
 

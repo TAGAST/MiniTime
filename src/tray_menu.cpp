@@ -31,6 +31,13 @@ void AppendHotkeyItem(HMENU menu, UINT id, const wchar_t* text,
     }
 }
 
+bool HasProfileFor(const std::vector<GameProfile>& profiles, const std::wstring& processName) {
+    for (const auto& profile : profiles) {
+        if (gameprofile::SameProcess(profile.processName, processName)) return true;
+    }
+    return false;
+}
+
 bool SameHotkey(const HotkeySpec& a, const HotkeySpec& b) {
     if (a.IsEmpty() || b.IsEmpty()) return a.IsEmpty() && b.IsEmpty();
     return a.modifiers == b.modifiers && a.virtualKey == b.virtualKey;
@@ -180,6 +187,52 @@ MenuCommand TrayMenu::Show(HWND owner, POINT screenPos, const TrayMenuState& sta
     AppendMenuW(hotkeyMenu, MF_POPUP, reinterpret_cast<UINT_PTR>(editMenu), L"调整位置");
 
     AppendMenuW(menu, MF_POPUP, reinterpret_cast<UINT_PTR>(hotkeyMenu), L"热键");
+
+    // ---- 游戏位置子菜单 ----
+    HMENU gameMenu = CreatePopupMenu();
+
+    {
+        // "保存当前位置到当前游戏"：只有前台确实是可识别的应用时才可用
+        const bool canSave = state.foreground.valid;
+        UINT flags = MF_STRING;
+        if (!canSave) flags |= MF_GRAYED;
+
+        wchar_t label[256] = {};
+        if (canSave) {
+            const std::wstring display =
+                gameprofile::ToDisplayName(state.foreground.processName);
+            swprintf(label, 256, L"保存当前位置到「%ls」", display.c_str());
+        } else {
+            wcscpy_s(label, L"保存当前位置到当前游戏");
+        }
+        AppendMenuW(gameMenu, flags, static_cast<UINT>(MenuCommand::SaveGamePosition), label);
+    }
+
+    if (!state.profiles.empty()) {
+        AppendMenuW(gameMenu, MF_SEPARATOR, 0, nullptr);
+
+        for (size_t i = 0; i < state.profiles.size(); ++i) {
+            const UINT id = static_cast<UINT>(MenuCommand::ProfileBase) + static_cast<UINT>(i);
+            const bool active = state.activeProfileProcess == state.profiles[i].processName;
+
+            wchar_t label[256] = {};
+            swprintf(label, 256, L"%ls", state.profiles[i].displayName.c_str());
+            AppendChecked(gameMenu, id, label, active);
+        }
+
+        AppendMenuW(gameMenu, MF_SEPARATOR, 0, nullptr);
+    }
+
+    {
+        const bool canDelete = state.foreground.valid && !state.profiles.empty() &&
+            HasProfileFor(state.profiles, state.foreground.processName);
+        UINT flags = MF_STRING;
+        if (!canDelete) flags |= MF_GRAYED;
+        AppendMenuW(gameMenu, flags, static_cast<UINT>(MenuCommand::DeleteGamePosition),
+                    L"删除当前游戏配置");
+    }
+
+    AppendMenuW(menu, MF_POPUP, reinterpret_cast<UINT_PTR>(gameMenu), L"游戏位置");
 
     AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
 
