@@ -4,6 +4,7 @@
 #include "config.h"
 #include "drag_editor.h"
 #include "game_profile.h"
+#include "window_picker.h"
 #include "hotkey.h"
 #include "menu_commands.h"
 #include "overlay_window.h"
@@ -39,11 +40,15 @@ private:
     void LoadGameProfiles();
     void OnForegroundChanged();
     void ApplyProfileFor(const std::wstring& processName);
-    void SaveCurrentPositionToGame(const ForegroundInfo& info);
+    void StartWindowPick();
+    void OnWindowPicked(const ForegroundInfo& info);
+    void OnWindowPickCancelled();
+    static void WindowPickedThunk(void* context, const ForegroundInfo& info);
+    static void WindowPickCancelledThunk(void* context);
     // 菜单弹出瞬间捕获的前台信息：点击菜单项时前台可能已改变
     // （托盘菜单、任务栏会成为前台），因此不能重新查询。
     ForegroundInfo menuForeground_ = {};
-    void DeleteCurrentGameProfile(const ForegroundInfo& info);
+    void DeleteActiveProfile();
     void SelectProfile(size_t index);
     void ApplyActiveLayout();
     static void WinEventThunk(HWINEVENTHOOK hook, DWORD event, HWND hwnd,
@@ -81,6 +86,8 @@ private:
     TrayIcon       trayIcon_      = {};
     TrayMenu       trayMenu_      = {};
     DragEditor     dragEditor_    = {};
+    WindowPicker   windowPicker_  = {};
+    POINT          pickSavePos_   = { 0, 0 };   // 开始拾取时的时钟位置
     HICON          appIcon_       = nullptr;
     UINT           trayCallback_  = 0;
     TimeFormat     format_        = {};

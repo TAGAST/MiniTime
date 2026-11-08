@@ -31,13 +31,6 @@ void AppendHotkeyItem(HMENU menu, UINT id, const wchar_t* text,
     }
 }
 
-bool HasProfileFor(const std::vector<GameProfile>& profiles, const std::wstring& processName) {
-    for (const auto& profile : profiles) {
-        if (gameprofile::SameProcess(profile.processName, processName)) return true;
-    }
-    return false;
-}
-
 bool SameHotkey(const HotkeySpec& a, const HotkeySpec& b) {
     if (a.IsEmpty() || b.IsEmpty()) return a.IsEmpty() && b.IsEmpty();
     return a.modifiers == b.modifiers && a.virtualKey == b.virtualKey;
@@ -191,22 +184,11 @@ MenuCommand TrayMenu::Show(HWND owner, POINT screenPos, const TrayMenuState& sta
     // ---- 游戏位置子菜单 ----
     HMENU gameMenu = CreatePopupMenu();
 
-    {
-        // "保存当前位置到当前游戏"：只有前台确实是可识别的应用时才可用
-        const bool canSave = state.foreground.valid;
-        UINT flags = MF_STRING;
-        if (!canSave) flags |= MF_GRAYED;
-
-        wchar_t label[256] = {};
-        if (canSave) {
-            const std::wstring display =
-                gameprofile::ToDisplayName(state.foreground.processName);
-            swprintf(label, 256, L"保存当前位置到「%ls」", display.c_str());
-        } else {
-            wcscpy_s(label, L"保存当前位置到当前游戏");
-        }
-        AppendMenuW(gameMenu, flags, static_cast<UINT>(MenuCommand::SaveGamePosition), label);
-    }
+    // 记录窗口：点击后进入拾取模式，由用户指定目标窗口，
+    // 不再依赖"菜单弹出瞬间的前台窗口"这种隐式判断。
+    AppendMenuW(gameMenu, MF_STRING,
+                static_cast<UINT>(MenuCommand::SaveGamePosition),
+                L"记录窗口位置…");
 
     if (!state.profiles.empty()) {
         AppendMenuW(gameMenu, MF_SEPARATOR, 0, nullptr);
@@ -224,12 +206,12 @@ MenuCommand TrayMenu::Show(HWND owner, POINT screenPos, const TrayMenuState& sta
     }
 
     {
-        const bool canDelete = state.foreground.valid && !state.profiles.empty() &&
-            HasProfileFor(state.profiles, state.foreground.processName);
+        // 删除：仅在有已保存配置且当前生效时可用
+        const bool canDelete = !state.activeProfileProcess.empty();
         UINT flags = MF_STRING;
         if (!canDelete) flags |= MF_GRAYED;
         AppendMenuW(gameMenu, flags, static_cast<UINT>(MenuCommand::DeleteGamePosition),
-                    L"删除当前游戏配置");
+                    L"删除当前生效配置");
     }
 
     AppendMenuW(menu, MF_POPUP, reinterpret_cast<UINT_PTR>(gameMenu), L"游戏位置");

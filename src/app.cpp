@@ -286,11 +286,11 @@ void App::HandleMenuCommand(MenuCommand command) {
         return;
 
     case MenuCommand::SaveGamePosition:
-        SaveCurrentPositionToGame(menuForeground_);
+        StartWindowPick();
         return;
 
     case MenuCommand::DeleteGamePosition:
-        DeleteCurrentGameProfile(menuForeground_);
+        DeleteActiveProfile();
         return;
 
     default:
@@ -552,16 +552,47 @@ void App::WinEventThunk(HWINEVENTHOOK, DWORD event, HWND, LONG, LONG, DWORD, DWO
     if (App::s_instance) App::s_instance->OnForegroundChanged();
 }
 
-void App::SaveCurrentPositionToGame(const ForegroundInfo& info) {
+void App::StartWindowPick() {
+    if (windowPicker_.IsActive()) return;
+
+    // 先记住当前时钟位置：拾取时遮罩会挡住它，之后用这份快照写盘
+    const RECT actual = overlay_.Bounds();
+    pickSavePos_.x = actual.left;
+    pickSavePos_.y = actual.top;
+
+    constexpr int kPickTimeoutMs = 15 * 1000;
+    if (!windowPicker_.Begin(instance_, kPickTimeoutMs,
+                             &App::WindowPickedThunk,
+                             &App::WindowPickCancelledThunk,
+                             this)) {
+        return;
+    }
+
+    UpdateTrayTooltip();
+}
+
+void App::WindowPickedThunk(void* context, const ForegroundInfo& info) {
+    auto* self = static_cast<App*>(context);
+    if (self) self->OnWindowPicked(info);
+}
+
+void App::WindowPickCancelledThunk(void* context) {
+    auto* self = static_cast<App*>(context);
+    if (self) self->OnWindowPickCancelled();
+}
+
+void App::OnWindowPicked(const ForegroundInfo& info) {
     if (!info.valid) return;
 
-    // 记录当前叠加层左上角。此时不在编辑模式，窗口尺寸即常态尺寸，
-    // 该坐标可直接作为 customX/customY 使用。
-    const RECT actual = overlay_.Bounds();
-    const int x = actual.left;
-    const int y = actual.top;
+    // 排除自己
+    if (gameprofile::SameProcess(info.processName, L"MiniTime.exe")) {
+        UpdateTrayTooltip();
+        return;
+    }
 
-    // 已存在则更新
+    const int x = pickSavePos_.x;
+    const int y = pickSavePos_.y;
+
     for (auto& profile : profiles_) {
         if (gameprofile::SameProcess(profile.processName, info.processName)) {
             profile.anchor  = Anchor::Custom;
@@ -569,6 +600,7 @@ void App::SaveCurrentPositionToGame(const ForegroundInfo& info) {
             profile.customY = y;
             config::SaveProfiles(profiles_);
             LoadGameProfiles();
+            UpdateTrayTooltip();
             return;
         }
     }
@@ -583,28 +615,32 @@ void App::SaveCurrentPositionToGame(const ForegroundInfo& info) {
 
     config::SaveProfiles(profiles_);
     LoadGameProfiles();
+    UpdateTrayTooltip();
 }
 
-void App::DeleteCurrentGameProfile(const ForegroundInfo& info) {
-    if (!info.valid) return;
+void App::OnWindowPickCancelled() {
+    UpdateTrayTooltip();
+}
+
+void App::DeleteActiveProfile() {
+    if (activeProfile_.empty()) return;
 
     const auto before = profiles_.size();
     profiles_.erase(
         std::remove_if(profiles_.begin(), profiles_.end(),
                        [&](const GameProfile& p) {
-                           return gameprofile::SameProcess(p.processName, info.processName);
+                           return gameprofile::SameProcess(p.processName, activeProfile_);
                        }),
         profiles_.end());
 
-    if (profiles_.size() != before) {
-        config::SaveProfiles(profiles_);
-        LoadGameProfiles();
+    if (profiles_.size() == before) return;
 
-        if (gameprofile::SameProcess(activeProfile_, info.processName)) {
-            activeProfile_.clear();
-            ApplyActiveLayout();
-        }
-    }
+    config::SaveProfiles(profiles_);
+    LoadGameProfiles();
+
+    activeProfile_.clear();
+    ApplyActiveLayout();
+    UpdateTrayTooltip();
 }
 
 void App::SelectProfile(size_t index) {
