@@ -256,6 +256,9 @@ void App::ShowTrayMenu() {
     state.foreground       = gameprofile::QueryForeground();
     state.activeProfileProcess = activeProfile_;
 
+    // 记录下来：菜单关闭后前台会变化，保存/删除必须用这一刻的窗口
+    menuForeground_ = state.foreground;
+
     const MenuCommand command = trayMenu_.Show(router_, pt, state);
     HandleMenuCommand(command);
 }
@@ -283,11 +286,11 @@ void App::HandleMenuCommand(MenuCommand command) {
         return;
 
     case MenuCommand::SaveGamePosition:
-        SaveCurrentPositionToGame();
+        SaveCurrentPositionToGame(menuForeground_);
         return;
 
     case MenuCommand::DeleteGamePosition:
-        DeleteCurrentGameProfile();
+        DeleteCurrentGameProfile(menuForeground_);
         return;
 
     default:
@@ -549,8 +552,7 @@ void App::WinEventThunk(HWINEVENTHOOK, DWORD event, HWND, LONG, LONG, DWORD, DWO
     if (App::s_instance) App::s_instance->OnForegroundChanged();
 }
 
-void App::SaveCurrentPositionToGame() {
-    const ForegroundInfo info = gameprofile::QueryForeground();
+void App::SaveCurrentPositionToGame(const ForegroundInfo& info) {
     if (!info.valid) return;
 
     // 记录当前叠加层左上角。此时不在编辑模式，窗口尺寸即常态尺寸，
@@ -583,8 +585,7 @@ void App::SaveCurrentPositionToGame() {
     LoadGameProfiles();
 }
 
-void App::DeleteCurrentGameProfile() {
-    const ForegroundInfo info = gameprofile::QueryForeground();
+void App::DeleteCurrentGameProfile(const ForegroundInfo& info) {
     if (!info.valid) return;
 
     const auto before = profiles_.size();

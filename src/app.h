@@ -39,8 +39,11 @@ private:
     void LoadGameProfiles();
     void OnForegroundChanged();
     void ApplyProfileFor(const std::wstring& processName);
-    void SaveCurrentPositionToGame();
-    void DeleteCurrentGameProfile();
+    void SaveCurrentPositionToGame(const ForegroundInfo& info);
+    // 菜单弹出瞬间捕获的前台信息：点击菜单项时前台可能已改变
+    // （托盘菜单、任务栏会成为前台），因此不能重新查询。
+    ForegroundInfo menuForeground_ = {};
+    void DeleteCurrentGameProfile(const ForegroundInfo& info);
     void SelectProfile(size_t index);
     void ApplyActiveLayout();
     static void WinEventThunk(HWINEVENTHOOK hook, DWORD event, HWND hwnd,
