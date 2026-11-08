@@ -289,23 +289,26 @@ void App::HandleMenuCommand(MenuCommand command) {
         StartWindowPick();
         return;
 
-    case MenuCommand::DeleteGamePosition:
-        DeleteActiveProfile();
-        return;
-
     default:
         break;
     }
 
-    // 已保存游戏的条目
+    // 已保存游戏：每项 3 个动作（套用 / 重命名 / 删除）
     {
         const int value = static_cast<int>(command);
-        if (value >= static_cast<int>(MenuCommand::ProfileBase) &&
-            value <= static_cast<int>(MenuCommand::ProfileBaseEnd)) {
-            const size_t index = static_cast<size_t>(
-                value - static_cast<int>(MenuCommand::ProfileBase));
-            SelectProfile(index);
-            return;
+        const int base  = static_cast<int>(MenuCommand::ProfileBase);
+        const int end   = static_cast<int>(MenuCommand::ProfileBaseEnd);
+        const int stride = static_cast<int>(MenuCommand::ProfileStride);
+
+        if (value >= base && value < end) {
+            const int offset = value - base;
+            const size_t index = static_cast<size_t>(offset / stride);
+            switch (offset % stride) {
+            case 0: SelectProfile(index); return;
+            case 1: RenameProfile(index); return;
+            case 2: DeleteProfile(index); return;
+            default: return;
+            }
         }
     }
 
@@ -622,24 +625,36 @@ void App::OnWindowPickCancelled() {
     UpdateTrayTooltip();
 }
 
-void App::DeleteActiveProfile() {
-    if (activeProfile_.empty()) return;
+void App::RenameProfile(size_t index) {
+    if (index >= profiles_.size()) return;
 
-    const auto before = profiles_.size();
-    profiles_.erase(
-        std::remove_if(profiles_.begin(), profiles_.end(),
-                       [&](const GameProfile& p) {
-                           return gameprofile::SameProcess(p.processName, activeProfile_);
-                       }),
-        profiles_.end());
+    std::wstring newName;
+    if (!textInput_.Show(instance_, router_, L"重命名游戏配置",
+                         profiles_[index].displayName, newName)) {
+        return;
+    }
 
-    if (profiles_.size() == before) return;
+    profiles_[index].displayName = newName;
+    config::SaveProfiles(profiles_);
+    LoadGameProfiles();
+    UpdateTrayTooltip();
+}
+
+void App::DeleteProfile(size_t index) {
+    if (index >= profiles_.size()) return;
+
+    const std::wstring removed = profiles_[index].processName;
+    profiles_.erase(profiles_.begin() + static_cast<ptrdiff_t>(index));
 
     config::SaveProfiles(profiles_);
     LoadGameProfiles();
 
-    activeProfile_.clear();
-    ApplyActiveLayout();
+    // 删掉的正好是当前生效的配置时，回到全局布局
+    if (gameprofile::SameProcess(activeProfile_, removed)) {
+        activeProfile_.clear();
+        ApplyActiveLayout();
+    }
+
     UpdateTrayTooltip();
 }
 

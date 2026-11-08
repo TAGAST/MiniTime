@@ -29,6 +29,7 @@ set(MINITIME_SOURCES
     src/config.cpp
     src/drag_editor.cpp
     src/game_profile.cpp
+    src/text_input.cpp
     src/window_picker.cpp
     res/resource.rc
 )

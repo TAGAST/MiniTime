@@ -68,9 +68,13 @@ enum class MenuCommand : int {
     // 游戏位置配置
     SaveGamePosition   = 4001,   // 把当前位置记录到当前前台游戏
     DeleteGamePosition = 4002,   // 删除当前前台游戏的配置
-    // 4003..4103 预留给「选择某个已保存的游戏」
+    // 已保存游戏的操作，按每项 10 个 ID 分配：
+    //   base + i*10 + 0  套用
+    //   base + i*10 + 1  重命名
+    //   base + i*10 + 2  删除
     ProfileBase        = 4003,
-    ProfileBaseEnd     = 4103,
+    ProfileBaseEnd     = 4903,
+    ProfileStride      = 10,
 };
 
 // 九宫格锚点；Custom 表示由自由拖动产生的绝对坐标

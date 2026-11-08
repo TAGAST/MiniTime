@@ -4,6 +4,7 @@
 #include "config.h"
 #include "drag_editor.h"
 #include "game_profile.h"
+#include "text_input.h"
 #include "window_picker.h"
 #include "hotkey.h"
 #include "menu_commands.h"
@@ -48,8 +49,10 @@ private:
     // 菜单弹出瞬间捕获的前台信息：点击菜单项时前台可能已改变
     // （托盘菜单、任务栏会成为前台），因此不能重新查询。
     ForegroundInfo menuForeground_ = {};
-    void DeleteActiveProfile();
+ 
     void SelectProfile(size_t index);
+    void RenameProfile(size_t index);
+    void DeleteProfile(size_t index);
     void ApplyActiveLayout();
     static void WinEventThunk(HWINEVENTHOOK hook, DWORD event, HWND hwnd,
                               LONG idObject, LONG idChild, DWORD thread, DWORD time);
@@ -87,6 +90,7 @@ private:
     TrayMenu       trayMenu_      = {};
     DragEditor     dragEditor_    = {};
     WindowPicker   windowPicker_  = {};
+    TextInputDialog textInput_     = {};
     POINT          pickSavePos_   = { 0, 0 };   // 开始拾取时的时钟位置
     HICON          appIcon_       = nullptr;
     UINT           trayCallback_  = 0;

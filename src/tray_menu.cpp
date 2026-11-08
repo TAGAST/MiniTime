@@ -193,25 +193,35 @@ MenuCommand TrayMenu::Show(HWND owner, POINT screenPos, const TrayMenuState& sta
     if (!state.profiles.empty()) {
         AppendMenuW(gameMenu, MF_SEPARATOR, 0, nullptr);
 
+        constexpr UINT kStride = static_cast<UINT>(MenuCommand::ProfileStride);
+        const UINT base = static_cast<UINT>(MenuCommand::ProfileBase);
+
         for (size_t i = 0; i < state.profiles.size(); ++i) {
-            const UINT id = static_cast<UINT>(MenuCommand::ProfileBase) + static_cast<UINT>(i);
             const bool active = state.activeProfileProcess == state.profiles[i].processName;
 
             wchar_t label[256] = {};
             swprintf(label, 256, L"%ls", state.profiles[i].displayName.c_str());
-            AppendChecked(gameMenu, id, label, active);
+
+            // 每项是一个子菜单：套用 / 重命名 / 删除
+            HMENU itemMenu = CreatePopupMenu();
+
+            UINT applyFlags = MF_STRING;
+            if (active) applyFlags |= MF_CHECKED;
+            AppendMenuW(itemMenu, applyFlags, base + static_cast<UINT>(i) * kStride, L"套用");
+
+            AppendMenuW(itemMenu, MF_STRING,
+                        base + static_cast<UINT>(i) * kStride + 1, L"重命名…");
+
+            AppendMenuW(itemMenu, MF_SEPARATOR, 0, nullptr);
+
+            AppendMenuW(itemMenu, MF_STRING,
+                        base + static_cast<UINT>(i) * kStride + 2, L"删除");
+
+            AppendMenuW(gameMenu, MF_POPUP,
+                        reinterpret_cast<UINT_PTR>(itemMenu), label);
         }
 
         AppendMenuW(gameMenu, MF_SEPARATOR, 0, nullptr);
-    }
-
-    {
-        // 删除：仅在有已保存配置且当前生效时可用
-        const bool canDelete = !state.activeProfileProcess.empty();
-        UINT flags = MF_STRING;
-        if (!canDelete) flags |= MF_GRAYED;
-        AppendMenuW(gameMenu, flags, static_cast<UINT>(MenuCommand::DeleteGamePosition),
-                    L"删除当前生效配置");
     }
 
     AppendMenuW(menu, MF_POPUP, reinterpret_cast<UINT_PTR>(gameMenu), L"游戏位置");
