@@ -158,23 +158,16 @@ toggle = none          ; 禁用
 
 需要 [llvm-mingw](https://github.com/mstorsjo/llvm-mingw)（免安装，解压即用）。
 
-1. 修改 `build.bat` 中的 `MINGW` 路径指向你的 llvm-mingw 目录
-2. 运行：
+`build.bat` 会自动查找编译器，顺序为：`MINGW` 环境变量 → 与仓库同级的 `llvm-mingw` 目录 → `PATH` → 常见安装位置。
+
+需要指定其他位置时，设置环境变量即可：
 
 ```bat
+set MINGW=D:\path\to\llvm-mingw
 build.bat
 ```
 
 产物为 `build\MiniTime.exe`。
-
-### CMake 构建
-
-仓库提供 `CMakeLists.txt`，MSVC 与 llvm-mingw 均可：
-
-```bash
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build
-```
 
 ### 云端构建
 
