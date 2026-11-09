@@ -318,6 +318,11 @@ void App::HandleMenuCommand(MenuCommand command) {
         RenderNow();
         config::Save(config_);
 
+        // 处在某个游戏的配置下时，外观改动属于这个游戏，同步写回
+        if (!IsHotkeyCommand(command) && !IsFormatCommand(command)) {
+            SaveStyleToActiveProfile();
+        }
+
         // 热键类命令需要重新注册才能生效
         if (IsHotkeyCommand(command)) {
             RegisterHotkeysFromConfig();
@@ -508,6 +513,13 @@ void App::ApplyActiveLayout() {
                 layout.marginX = profile.marginX;
                 layout.marginY = profile.marginY;
 
+                // 外观同样以该游戏的记录为准
+                AppConfig styleSource = config_;
+                styleSource.scalePercent = profile.scalePercent;
+                styleSource.fontWeight   = profile.fontWeight;
+                styleSource.textColor    = profile.textColor;
+
+                presenter_.SetStyle(styleSource.ToTextStyle());
                 presenter_.SetLayout(layout);
                 presenter_.InvalidateGeometry();
                 RenderNow();
@@ -519,6 +531,32 @@ void App::ApplyActiveLayout() {
     ApplyConfigToPresenter();
     presenter_.InvalidateGeometry();
     RenderNow();
+}
+
+GameProfile* App::ActiveProfile() {
+    if (activeProfile_.empty()) return nullptr;
+
+    for (auto& profile : profiles_) {
+        if (gameprofile::SameProcess(profile.processName, activeProfile_)) {
+            return &profile;
+        }
+    }
+    return nullptr;
+}
+
+void App::CaptureStyle(GameProfile& profile) const {
+    profile.scalePercent = config_.scalePercent;
+    profile.fontWeight   = config_.fontWeight;
+    profile.textColor    = config_.textColor;
+}
+
+void App::SaveStyleToActiveProfile() {
+    GameProfile* profile = ActiveProfile();
+    if (!profile) return;
+
+    CaptureStyle(*profile);
+    config::SaveProfiles(profiles_);
+    LoadGameProfiles();
 }
 
 void App::ApplyProfileFor(const std::wstring& processName) {
@@ -601,6 +639,7 @@ void App::OnWindowPicked(const ForegroundInfo& info) {
             profile.anchor  = Anchor::Custom;
             profile.customX = x;
             profile.customY = y;
+            CaptureStyle(profile);
             config::SaveProfiles(profiles_);
             LoadGameProfiles();
             UpdateTrayTooltip();
@@ -614,6 +653,7 @@ void App::OnWindowPicked(const ForegroundInfo& info) {
     profile.anchor  = Anchor::Custom;
     profile.customX = x;
     profile.customY = y;
+    CaptureStyle(profile);
     profiles_.push_back(profile);
 
     config::SaveProfiles(profiles_);

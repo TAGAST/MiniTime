@@ -54,6 +54,12 @@ private:
     void RenameProfile(size_t index);
     void DeleteProfile(size_t index);
     void ApplyActiveLayout();
+
+    // 外观记忆：把当前全局外观写进某个游戏配置
+    void CaptureStyle(GameProfile& profile) const;
+    // 外观被改动后，同步写回当前生效的游戏配置
+    void SaveStyleToActiveProfile();
+    GameProfile* ActiveProfile();
     static void WinEventThunk(HWINEVENTHOOK hook, DWORD event, HWND hwnd,
                               LONG idObject, LONG idChild, DWORD thread, DWORD time);
 

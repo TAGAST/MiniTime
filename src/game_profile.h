@@ -6,8 +6,9 @@
 #include <string>
 #include <vector>
 
-// 单个游戏的位置配置。
-// 以进程名识别游戏，命中时套用该位置。
+// 单个游戏的配置：窗口位置 + 文字外观。
+// 以进程名识别游戏，命中时整套套用；内容是全局设置的快照，
+// 之后改全局设置不会影响已经记录过的游戏。
 struct GameProfile {
     std::wstring processName;   // 例如 L"GenshinImpact.exe"，比较时不区分大小写
     std::wstring displayName;   // 菜单显示用（默认取进程名去掉扩展名）
@@ -18,6 +19,10 @@ struct GameProfile {
 
     int    marginX = 24;
     int    marginY = 20;
+
+    int      scalePercent = 100;
+    int      fontWeight   = 600;
+    COLORREF textColor    = RGB(255, 255, 255);
 };
 
 // 前台窗口信息：识别游戏所需的最小信息集。

@@ -361,6 +361,24 @@ std::vector<GameProfile> LoadProfiles() {
         GetPrivateProfileStringW(section.c_str(), L"margin_y", L"20", buffer, 256, path.c_str());
         profile.marginY = _wtoi(buffer);
 
+        // 外观：老配置没有这几个键，此时继承当前全局设置，
+        // 位置配置保持原样，不会因为升级而被改坏。
+        wchar_t styleBuffer[64] = {};
+        swprintf(styleBuffer, 64, L"%d", profile.scalePercent);
+        GetPrivateProfileStringW(section.c_str(), L"scale_percent", styleBuffer,
+                                 buffer, 256, path.c_str());
+        profile.scalePercent = _wtoi(buffer);
+
+        swprintf(styleBuffer, 64, L"%d", profile.fontWeight);
+        GetPrivateProfileStringW(section.c_str(), L"font_weight", styleBuffer,
+                                 buffer, 256, path.c_str());
+        profile.fontWeight = _wtoi(buffer);
+
+        GetPrivateProfileStringW(section.c_str(), L"text_color",
+                                 ColorToHex(profile.textColor).c_str(),
+                                 buffer, 256, path.c_str());
+        profile.textColor = HexToColor(buffer, profile.textColor);
+
         if (!profile.processName.empty()) {
             result.push_back(profile);
         }
@@ -415,6 +433,15 @@ bool SaveProfiles(const std::vector<GameProfile>& profiles) {
 
         swprintf(buffer, 64, L"%d", profile.marginY);
         WritePrivateProfileStringW(section.c_str(), L"margin_y", buffer, path.c_str());
+
+        swprintf(buffer, 64, L"%d", profile.scalePercent);
+        WritePrivateProfileStringW(section.c_str(), L"scale_percent", buffer, path.c_str());
+
+        swprintf(buffer, 64, L"%d", profile.fontWeight);
+        WritePrivateProfileStringW(section.c_str(), L"font_weight", buffer, path.c_str());
+
+        WritePrivateProfileStringW(section.c_str(), L"text_color",
+                                   ColorToHex(profile.textColor).c_str(), path.c_str());
     }
 
     return true;
