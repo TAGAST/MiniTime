@@ -576,6 +576,10 @@ void App::ApplyProfileFor(const std::wstring& processName) {
 }
 
 void App::OnForegroundChanged() {
+    // 全屏游戏切回来会重排 z-order，把自己压到下面。
+    // 前台一变就重新置顶，比等下一次 tick 更及时。
+    RaiseOverlayIfCovered();
+
     const ForegroundInfo info = gameprofile::QueryForeground();
 
     if (!info.valid) return;
@@ -707,7 +711,18 @@ void App::SelectProfile(size_t index) {
 }
 
 void App::OnTick() {
+    // 兜底：前台切换未必总能触发事件（独占全屏尤其如此），
+    // 每次刷新时确认一次是否被压下去，被压才重提。
+    RaiseOverlayIfCovered();
+
     RenderNow();
+}
+
+void App::RaiseOverlayIfCovered() {
+    if (!overlay_.IsVisible()) return;
+    if (overlay_.IsTopmost()) return;
+
+    overlay_.RaiseTopmost();
 }
 
 void App::EnsureVisibleAndTopmost() {

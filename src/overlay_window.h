@@ -26,6 +26,10 @@ public:
     // 维持置顶（前台变化/被遮挡时调用）
     void RaiseTopmost() const;
 
+    // 是否仍占据最上层：既在置顶层级，且上方没有其他置顶窗口。
+    // 全屏游戏切换会重排 z-order，据此避免无谓的 SetWindowPos。
+    bool IsTopmost() const;
+
     // 设置窗口矩形（像素）
     void SetBounds(int x, int y, int width, int height) const;
 

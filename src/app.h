@@ -83,6 +83,8 @@ private:
     void RenderNow();
 
     void OnTick();
+    // 被别的窗口压下去时重新置顶（全屏游戏会重排 z-order）
+    void RaiseOverlayIfCovered();
     void EnsureVisibleAndTopmost();
     void OnToggleVisibility();
     void Shutdown();

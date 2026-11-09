@@ -148,6 +148,43 @@ void OverlayWindow::RaiseTopmost() const {
                  SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
 }
 
+namespace {
+// 小于该尺寸的窗口视为系统辅助窗口，不参与遮挡判断
+constexpr int kMinOccluderSize = 2;
+}   // namespace
+
+bool OverlayWindow::IsTopmost() const {
+    if (!hwnd_) return false;
+
+    // 先看自己是否还在置顶层级
+    if ((GetWindowLongPtrW(hwnd_, GWL_EXSTYLE) & WS_EX_TOPMOST) == 0) {
+        return false;
+    }
+
+    // 再看置顶层里有没有窗口真的排在自己之上。
+    // 注意：不能只看 IsWindowVisible —— 系统里有些带 TOPMOST 的辅助窗口
+    // （例如 explorer 的 ThumbnailDeviceHelperWnd）也报告可见，
+    // 但它们没有尺寸、永远挡不住内容，必须按矩形排除掉。
+    for (HWND h = GetWindow(hwnd_, GW_HWNDPREV); h; h = GetWindow(h, GW_HWNDPREV)) {
+        const LONG_PTR ex = GetWindowLongPtrW(h, GWL_EXSTYLE);
+        if ((ex & WS_EX_TOPMOST) == 0) break;      // 已走出置顶层
+        if (!IsWindowVisible(h)) continue;
+
+        RECT r = {};
+        if (!GetWindowRect(h, &r)) continue;
+
+        // 系统里还存在 1x1 的置顶辅助窗口（explorer 缩略图等），
+        // 它们同样挡不住内容，一并排除。
+        const int w = r.right - r.left;
+        const int hgt = r.bottom - r.top;
+        if (w < kMinOccluderSize || hgt < kMinOccluderSize) continue;
+
+        return false;
+    }
+
+    return true;
+}
+
 void OverlayWindow::SetBounds(int x, int y, int width, int height) const {
     if (!hwnd_) return;
     SetWindowPos(hwnd_, HWND_TOPMOST, x, y, width, height,
