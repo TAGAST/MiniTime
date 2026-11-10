@@ -40,10 +40,15 @@ jobs:
       - name: Setup llvm-mingw
         shell: pwsh
         run: |
+          $ErrorActionPreference = 'Stop'
           $ver  = "${{ env.LLVM_MINGW_VERSION }}"
-          $root = "${{ env.LLVM_MINGW_ROOT }}"
-          if (Test-Path (Join-Path $root "bin\x86_64-w64-mingw32-g++.exe")) {
-            Write-Host "llvm-mingw 已缓存: $root"
+          $root = [System.IO.Path]::GetFullPath("${{ env.LLVM_MINGW_ROOT }}")
+          Write-Host "llvm-mingw 目标目录: $root"
+
+          $gpp = Join-Path $root "bin\x86_64-w64-mingw32-g++.exe"
+          Write-Host "期望编译器路径: $gpp"
+          if (Test-Path $gpp) {
+            Write-Host "已存在，跳过下载"
             exit 0
           }
 
@@ -51,20 +56,38 @@ jobs:
           $asset = "llvm-mingw-$ver-msvcrt-i686.zip"
           $url   = "https://github.com/mstorsjo/llvm-mingw/releases/download/$ver/$asset"
           $zip   = Join-Path $env:RUNNER_TEMP $asset
-          Write-Host "下载 $url"
-          Invoke-WebRequest -Uri $url -OutFile $zip -UseBasicParsing
+          Write-Host "下载: $url"
+          curl.exe -L --fail --retry 5 --retry-delay 3 -o $zip $url
+          if ($LASTEXITCODE -ne 0) { throw "下载失败，curl 退出码 $LASTEXITCODE" }
+          Write-Host "下载完成: $((Get-Item $zip).Length) 字节"
 
           New-Item -ItemType Directory -Force -Path $root | Out-Null
           Expand-Archive -Path $zip -DestinationPath $root -Force
+          Write-Host "解压完成，根目录内容："
+          Get-ChildItem $root | Select-Object -First 10 | ForEach-Object { Write-Host "  $($_.Name)" }
 
-          $gpp = Join-Path $root "bin\x86_64-w64-mingw32-g++.exe"
-          if (-not (Test-Path $gpp)) { throw "解压后未找到编译器: $gpp" }
-          Write-Host "llvm-mingw 就绪: $root"
+          # 官方 zip 内层还有一层同名目录，需要找到真正的 bin 所在位置
+          if (-not (Test-Path $gpp)) {
+            $inner = Get-ChildItem $root -Directory -Filter 'llvm-mingw-*' | Select-Object -First 1
+            if ($inner -and (Test-Path (Join-Path $inner.FullName "bin\x86_64-w64-mingw32-g++.exe"))) {
+              Write-Host "检测到内层目录，路径调整为: $($inner.FullName)"
+              "LLVM_ROOT=$($inner.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+            } else {
+              throw "解压后未找到编译器: $gpp"
+            }
+          }
 
       - name: Build
         shell: pwsh
         run: |
-          $env:MINGW = "${{ env.LLVM_MINGW_ROOT }}"
+          $root = $env:LLVM_ROOT
+          if (-not $root) { $root = [System.IO.Path]::GetFullPath("${{ env.LLVM_MINGW_ROOT }}") }
+          Write-Host "使用 llvm-mingw: $root"
+          if (-not (Test-Path (Join-Path $root 'bin\x86_64-w64-mingw32-g++.exe'))) {
+            throw "编译器不存在于: $root"
+          }
+
+          $env:MINGW = $root
           cmd /c build.bat
           if ($LASTEXITCODE -ne 0) { throw "build failed" }
 
