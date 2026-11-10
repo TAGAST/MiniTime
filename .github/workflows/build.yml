@@ -14,6 +14,9 @@ env:
   BUILD_DIR: build
   EXE_NAME: MiniTime.exe
   SIZE_LIMIT: 300000
+  # 与本地开发所用的 llvm-mingw 版本保持一致
+  LLVM_MINGW_VERSION: '20261020'
+  LLVM_MINGW_ROOT: '${{ github.workspace }}\..\llvm-mingw'
 
 jobs:
   build:
@@ -25,11 +28,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Setup MSVC
-        uses: ilammy/msvc-dev-cmd@v1
-        with:
-          arch: x64
-
       - name: Resolve version
         id: version
         shell: pwsh
@@ -38,18 +36,36 @@ jobs:
           "VERSION=$v" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           Write-Host "version: $v"
 
-      - name: Configure CMake
+      # 与本地构建保持一致：同一条 build.bat 链路，CI 验证的就是用户实际用的那条路
+      - name: Setup llvm-mingw
         shell: pwsh
         run: |
-          cmake -S . -B ${{ env.BUILD_DIR }} -G Ninja `
-                -DCMAKE_BUILD_TYPE=Release `
-                -DGAMECLOCK_VERSION=${{ steps.version.outputs.VERSION }}
-          if ($LASTEXITCODE -ne 0) { throw "configure failed" }
+          $ver  = "${{ env.LLVM_MINGW_VERSION }}"
+          $root = "${{ env.LLVM_MINGW_ROOT }}"
+          if (Test-Path (Join-Path $root "bin\x86_64-w64-mingw32-g++.exe")) {
+            Write-Host "llvm-mingw 已缓存: $root"
+            exit 0
+          }
+
+          # 目标架构 i686 的包内置的编译器本身运行在 x64 上，可直接在 windows-latest 使用
+          $asset = "llvm-mingw-$ver-msvcrt-i686.zip"
+          $url   = "https://github.com/mstorsjo/llvm-mingw/releases/download/$ver/$asset"
+          $zip   = Join-Path $env:RUNNER_TEMP $asset
+          Write-Host "下载 $url"
+          Invoke-WebRequest -Uri $url -OutFile $zip -UseBasicParsing
+
+          New-Item -ItemType Directory -Force -Path $root | Out-Null
+          Expand-Archive -Path $zip -DestinationPath $root -Force
+
+          $gpp = Join-Path $root "bin\x86_64-w64-mingw32-g++.exe"
+          if (-not (Test-Path $gpp)) { throw "解压后未找到编译器: $gpp" }
+          Write-Host "llvm-mingw 就绪: $root"
 
       - name: Build
         shell: pwsh
         run: |
-          cmake --build ${{ env.BUILD_DIR }} --config Release
+          $env:MINGW = "${{ env.LLVM_MINGW_ROOT }}"
+          cmd /c build.bat
           if ($LASTEXITCODE -ne 0) { throw "build failed" }
 
       - name: Size gate
